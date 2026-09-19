@@ -1,8 +1,8 @@
-# Database
+# Backend Database
 
-The database is owned by the MailTrace-AI Backend repository.
+The database is owned by the `MailTrace-AI-Backend` repository.
 
-There is no separate database repository.
+There is no separate database repository or permanent database branch.
 
 ## Architecture
 
@@ -14,64 +14,78 @@ FastAPI Backend
 Database
 ```
 
-## Responsibilities
-
-The database layer handles:
-
-- connection management
-- models
-- migrations
-- seed/demo data
-- persistence
-- querying
-
 ## Initial Entities
 
 ### users
-Stores application users.
+Application users.
 
 ### mailboxes
-Stores mailbox/account information.
+Mailbox/account metadata.
 
 ### emails
-Stores normalized email metadata and content references.
+Normalized email metadata and safe content references. Raw content should only be persisted where required by an explicit evidence/retention policy.
 
 ### delivery_events
-Stores delivery and processing events.
+Gateway processing and delivery events.
 
 ### analysis_runs
-Stores each analysis execution.
+Each security/ML analysis execution.
 
 ### security_findings
-Stores findings produced by security analysis.
+Structured security findings.
 
 ### security_tags
-Stores normalized threat/security tags.
+Normalized security/explainability tags.
 
 ### ml_results
-Stores ML predictions, scores and model metadata.
+ML predictions, scores and model metadata.
 
 ### policy_decisions
-Stores the final delivery action.
+Final delivery action and policy context.
 
 ### evidence
-Stores forensic evidence references and extracted facts.
+Evidence references, hashes, extracted facts and preservation metadata.
 
 ### forensic_cases
-Stores investigation/case information.
+Investigation/case information.
 
-## Important Rule
+## Suggested Additional Fields
 
-The database stores system results; the frontend only receives data through backend APIs.
-
-Never:
+Security-related fields may include:
 
 ```text
-Frontend → Database
+classification
+risk_score
+threat_confidence
+delivery_action
+spam_category
+quarantine_reason
 ```
 
-Always:
+Feature-level results should follow the canonical feature schema in:
 
 ```text
-Frontend → Backend API → Database
+../SECURITY_FEATURE_SCHEMA.md
 ```
+
+## Privacy
+
+Avoid storing raw body/attachments unnecessarily.
+
+Prefer:
+
+```text
+raw artifact
+   ↓
+transient analysis
+   ↓
+hash + extracted security facts
+   ↓
+persist required evidence only
+```
+
+## Integrity
+
+For preserved evidence, store cryptographic hashes such as SHA-256 and relevant timestamps/metadata so that changes can be detected.
+
+The database does not itself make an evidence report legally admissible; legal admissibility depends on applicable procedures and jurisdiction.

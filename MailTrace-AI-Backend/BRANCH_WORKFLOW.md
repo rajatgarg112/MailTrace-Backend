@@ -1,8 +1,6 @@
 # Backend Branch Workflow
 
-## Branches
-
-The backend repository has three permanent branches:
+## Permanent Branches
 
 ```text
 main
@@ -10,85 +8,110 @@ ml
 security
 ```
 
-## main
+These are repository-level development branches, not a replacement for short-lived feature branches.
 
-Integration branch.
+## `main`
 
-Contains the working backend and database integration.
+Integration/source-of-truth branch.
 
-## ml
+Owns:
 
-ML development branch.
+- API
+- DB
+- shared contracts
+- gateway
+- correlation
+- risk engine
+- delivery policy
+- integrated backend
 
-Contains:
+## `ml`
 
-- model code
-- feature extraction
-- inference
-- training/evaluation utilities
-- ML artifacts
+Owns:
 
-## security
+- content/NLP
+- BEC/impersonation
+- behavioral features
+- ML models
+- inference/training/evaluation
 
-Security development branch.
+## `security`
 
-Contains:
+Owns:
 
-- email/header analysis
-- authentication checks
-- domain analysis
-- URL analysis
-- relay analysis
-- forensic logic
-- evidence generation
+- sender/domain
+- SPF/DKIM/DMARC
+- headers/IP/relay
+- URL/domain
+- attachments
+- QR
+- threat intelligence
+- evidence/forensics
 
-## Recommended Workflow
+## Recommended Team Workflow
 
-### ML developer
+Use short-lived feature branches from the appropriate permanent branch when multiple people are working in parallel.
+
+Example:
 
 ```text
-main
- ↓
+security
+   ↓
+feature/url-attachment-qr
+   ↓
+merge → security
+   ↓
+integration merge → main
+```
+
+and:
+
+```text
 ml
  ↓
-Develop/Test
+feature/content-bec-behavior
  ↓
-Merge into main
+merge → ml
+ ↓
+integration merge → main
 ```
 
-### Security developer
+Core gateway/risk/API work can use:
 
 ```text
 main
  ↓
-security
+feature/gateway-orchestrator
  ↓
-Develop/Test
- ↓
-Merge into main
+merge → main
 ```
 
-### Core backend developer
+## Dependency Order
+
+Recommended implementation order:
 
 ```text
-main
- ↓
-API + DB + orchestration
- ↓
-Test
+1. Canonical feature contract
+2. Gateway/orchestrator
+3. Security analyzers
+4. ML/content/behavior analyzers
+5. Security tags
+6. Risk engine
+7. Classification
+8. Delivery policy
+9. DB persistence
+10. Frontend API integration
 ```
 
-## Shared Database Changes
+## Database Changes
 
-If `ml` or `security` requires a database change:
+If `ml` or `security` requires a DB change:
 
-1. Document the required table/field.
-2. Add the migration/change on that branch.
+1. Document the field/entity.
+2. Add migration/change.
 3. Test it.
 4. Merge the complete change into `main`.
-5. Keep the database schema synchronized.
-
-`main` is the source of truth for the integrated backend.
+5. Keep schema synchronized.
 
 ## Avoid
 
@@ -99,7 +122,7 @@ database
 frontend-backend
 api-final
 ml-final-final
-security-final
+security-final-final
 ```
 
-unless the team later has a specific documented reason.
+unless the team later documents a real need.
