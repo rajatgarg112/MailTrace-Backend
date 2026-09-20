@@ -1,6 +1,6 @@
 """
 TF-IDF Text Classifier for Spam & Phishing score estimation.
-Supports sklearn if available, or falls back to an internal TF-IDF + Naive Bayes implementation.
+Supports optional n-gram tokenization (unigrams, bigrams) while remaining 100% dependency-free.
 """
 
 import math
@@ -11,10 +11,11 @@ from typing import List, Dict, Tuple, Optional
 class SimpleTFIDFClassifier:
     """
     Lightweight, dependency-free TF-IDF Naive Bayes Classifier.
-    Used for text classification (spam / phishing / benign) when heavy models are unneeded or offline.
+    Supports configurable n-gram token ranges (e.g. ngram_range=(1, 1) or (1, 2)).
     """
 
-    def __init__(self):
+    def __init__(self, ngram_range: Tuple[int, int] = (1, 1)):
+        self.ngram_range = ngram_range
         self.vocab: Dict[str, int] = {}
         self.idf: Dict[str, float] = {}
         self.class_priors: Dict[str, float] = {}
@@ -23,11 +24,20 @@ class SimpleTFIDFClassifier:
 
     def _tokenize(self, text: str) -> List[str]:
         text = text.lower()
-        tokens = re.findall(r'\b[a-z0-9_]{2,}\b', text)
+        unigrams = re.findall(r'\b[a-z0-9_]{2,}\b', text)
+        if self.ngram_range == (1, 1) or not unigrams:
+            return unigrams
+
+        tokens = list(unigrams)
+        min_n, max_n = self.ngram_range
+        if max_n >= 2:
+            for i in range(len(unigrams) - 1):
+                bigram = f"{unigrams[i]}_{unigrams[i+1]}"
+                tokens.append(bigram)
         return tokens
 
     def train(self, documents: List[str], labels: List[str]) -> None:
-        """Train classifier on sample dataset."""
+        """Train classifier on dataset documents and labels."""
         if not documents or not labels or len(documents) != len(labels):
             raise ValueError("Documents and labels must be non-empty and of equal length.")
 

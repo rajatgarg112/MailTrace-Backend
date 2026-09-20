@@ -204,6 +204,7 @@ The `BehavioralAnalyzer` compares incoming message distribution metadata against
 
 `ml/models/tfidf_classifier.py` provides a lightweight, dependency-free text classification model:
 - **Algorithm:** Multinomial Naive Bayes with Term Frequency-Inverse Document Frequency (TF-IDF) feature weighting.
+- **N-Gram Tokenization:** Optional `ngram_range` parameter (`(1, 1)` default unigrams, `(1, 2)` unigrams + bigrams) for capturing multi-word context phrases while remaining 100% dependency-free.
 - **Smoothing:** Applies Laplace smoothing and log-softmax conversion for probability distributions (`predict_proba`).
 - **Training:** Exposes `train(documents, labels)` for online or batch training on text datasets.
 - **Determinism:** Tokenization, vocabulary mapping, and inference are strictly deterministic.
@@ -252,13 +253,13 @@ The ML module adheres to privacy and security requirements:
 
 ## 14. Testing Suite
 
-The unit test suite under `ml/tests/` verifies all analyzers, models, preprocessing utilities, dataset loading, data leakage safeguards, and evaluation metrics:
+The unit test suite under `ml/tests/` verifies all analyzers, models, preprocessing utilities, dataset loading, data leakage safeguards, n-gram tokenization, and evaluation metrics:
 
 ```bash
 python -m pytest ml/tests/
 ```
 
-**Verified Test Summary:** 24 passed in 0.28s (14 baseline analyzer tests + 10 dataset pipeline & leakage tests).
+**Verified Test Summary:** 34 passed in 0.31s (14 baseline analyzer tests + 10 dataset pipeline tests + 10 feature engineering tests).
 
 ---
 

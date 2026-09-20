@@ -5,6 +5,7 @@ location_anomaly, sender_behavior_change, conversation_anomaly, recipient_count,
 bulk_score, historical_similarity, conversation_exists.
 """
 
+import math
 from typing import Dict, Any, Optional, List
 
 
@@ -16,7 +17,7 @@ def extract_behavioral_features(
     originating_country: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Extract behavioral baseline comparison features.
+    Extract behavioral baseline comparison features with continuous bounded scaling.
     """
     history = sender_history or {}
 
@@ -29,18 +30,19 @@ def extract_behavioral_features(
     past_recipient_avg = history.get("past_recipient_avg", 1.0)
     conversation_exists = history.get("conversation_exists", False)
 
-    # 1. Sending Frequency & Volume Anomaly
+    # 1. Sending Frequency & Volume Anomaly (Continuous exponential saturation)
     volume_anomaly = 0.0
     if seen_before and avg_daily_volume > 0:
         ratio = recent_volume / avg_daily_volume
-        if ratio > 3.0:
-            volume_anomaly = min(1.0, (ratio - 3.0) / 10.0)
+        if ratio > 1.0:
+            volume_anomaly = 1.0 - math.exp(-0.25 * (ratio - 1.0))
 
-    # 2. Time Anomaly
+    # 2. Time Anomaly (Continuous distance scaling from active hours window)
     time_anomaly = 0.0
     if seen_before and current_time_hour is not None and usual_hours:
         if current_time_hour not in usual_hours:
-            time_anomaly = 0.75
+            min_dist = min(min(abs(current_time_hour - h), 24 - abs(current_time_hour - h)) for h in usual_hours)
+            time_anomaly = min(1.0, min_dist / 6.0)
 
     # 3. Location Anomaly
     location_anomaly = 0.0
@@ -48,14 +50,10 @@ def extract_behavioral_features(
         if originating_country not in usual_countries:
             location_anomaly = 0.85
 
-    # 4. Bulk Score (High recipient count or mass mailing signals)
+    # 4. Bulk Score (Continuous saturation curve based on recipient count)
     bulk_score = 0.0
-    if recipient_count > 50:
-        bulk_score = 0.95
-    elif recipient_count > 10:
-        bulk_score = 0.60
-    elif recipient_count > 3:
-        bulk_score = 0.25
+    if recipient_count > 1:
+        bulk_score = 1.0 - math.exp(-0.04 * (recipient_count - 1))
 
     # 5. Conversation & Behavior Change Anomaly
     sender_behavior_change = max(volume_anomaly, time_anomaly, location_anomaly)
