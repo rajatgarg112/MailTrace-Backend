@@ -204,10 +204,10 @@ The `BehavioralAnalyzer` compares incoming message distribution metadata against
 
 `ml/models/tfidf_classifier.py` provides a lightweight, dependency-free text classification model:
 - **Algorithm:** Multinomial Naive Bayes with Term Frequency-Inverse Document Frequency (TF-IDF) feature weighting.
-- **N-Gram Tokenization:** Optional `ngram_range` parameter (`(1, 1)` default unigrams, `(1, 2)` unigrams + bigrams) for capturing multi-word context phrases while remaining 100% dependency-free.
-- **Smoothing:** Applies Laplace smoothing and log-softmax conversion for probability distributions (`predict_proba`).
-- **Training:** Exposes `train(documents, labels)` for online or batch training on text datasets.
-- **Determinism:** Tokenization, vocabulary mapping, and inference are strictly deterministic.
+- **N-Gram Tokenization:** Optional `ngram_range` parameter (`(1, 1)` default unigrams, `(1, 2)` unigrams + bigrams) for capturing multi-word context phrases with strict bounds validation (`1 <= min_n <= max_n`).
+- **Model Serialization:** Safe JSON model persistence via `save_model(file_path)` and `SimpleTFIDFClassifier.load_model(file_path)`. Serializes vocabulary, IDF, class priors, log likelihoods, and n-gram configuration without pickle or dynamic code execution.
+- **Smoothing & Normalization:** Applies Laplace smoothing and log-softmax conversion for probability distributions (`predict_proba`).
+- **Training & Inference:** Exposes `train(documents, labels)` for online or batch training on text datasets; predictions before save and after load are strictly equivalent.
 
 ---
 
@@ -253,13 +253,13 @@ The ML module adheres to privacy and security requirements:
 
 ## 14. Testing Suite
 
-The unit test suite under `ml/tests/` verifies all analyzers, models, preprocessing utilities, dataset loading, data leakage safeguards, n-gram tokenization, and evaluation metrics:
+The unit test suite under `ml/tests/` verifies all analyzers, models, preprocessing utilities, dataset loading, data leakage safeguards, n-gram tokenization, model serialization, and evaluation metrics:
 
 ```bash
 python -m pytest ml/tests/
 ```
 
-**Verified Test Summary:** 34 passed in 0.31s (14 baseline analyzer tests + 10 dataset pipeline tests + 10 feature engineering tests).
+**Verified Test Summary:** 41 passed in 0.41s (14 baseline analyzer tests + 10 dataset pipeline tests + 10 feature engineering tests + 7 model persistence & validation tests).
 
 ---
 

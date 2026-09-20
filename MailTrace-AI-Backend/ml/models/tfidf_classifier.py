@@ -1,21 +1,39 @@
 """
 TF-IDF Text Classifier for Spam & Phishing score estimation.
-Supports optional n-gram tokenization (unigrams, bigrams) while remaining 100% dependency-free.
+Supports optional n-gram tokenization (unigrams, bigrams) and safe JSON model persistence.
 """
 
+import json
 import math
 import re
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
+
+
+def validate_ngram_range(ngram_range: Any) -> Tuple[int, int]:
+    """
+    Validate ngram_range parameter.
+    Must be a tuple or list of 2 integers (min_n, max_n) where 1 <= min_n <= max_n.
+    """
+    if not isinstance(ngram_range, (tuple, list)) or len(ngram_range) != 2:
+        raise ValueError(f"Invalid ngram_range: {ngram_range}. Must be a tuple or list of 2 integers (min_n, max_n).")
+    min_n, max_n = ngram_range
+    if not isinstance(min_n, int) or not isinstance(max_n, int):
+        raise ValueError(f"Invalid ngram_range bounds: ({type(min_n).__name__}, {type(max_n).__name__}). Bounds must be integers.")
+
+    if min_n < 1 or max_n < min_n:
+        raise ValueError(f"Invalid ngram_range values: ({min_n}, {max_n}). Bounds must satisfy 1 <= min_n <= max_n.")
+
+    return (min_n, max_n)
 
 
 class SimpleTFIDFClassifier:
     """
     Lightweight, dependency-free TF-IDF Naive Bayes Classifier.
-    Supports configurable n-gram token ranges (e.g. ngram_range=(1, 1) or (1, 2)).
+    Supports configurable n-gram token ranges and safe JSON model serialization.
     """
 
     def __init__(self, ngram_range: Tuple[int, int] = (1, 1)):
-        self.ngram_range = ngram_range
+        self.ngram_range = validate_ngram_range(ngram_range)
         self.vocab: Dict[str, int] = {}
         self.idf: Dict[str, float] = {}
         self.class_priors: Dict[str, float] = {}
@@ -106,3 +124,58 @@ class SimpleTFIDFClassifier:
         sum_exp = sum(exp_scores.values())
 
         return {lbl: val / sum_exp for lbl, val in exp_scores.items()}
+
+    def save_model(self, file_path: str) -> None:
+        """
+        Serialize trained model state safely to a JSON file.
+        Raises ValueError if model is untrained.
+        """
+        if not self.is_trained:
+            raise ValueError("Cannot save an untrained model.")
+
+        model_data = {
+            "version": "1.0",
+            "ngram_range": list(self.ngram_range),
+            "vocab": self.vocab,
+            "idf": self.idf,
+            "class_priors": self.class_priors,
+            "feature_log_probs": self.feature_log_probs,
+            "is_trained": True
+        }
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(model_data, f, indent=2)
+
+    @classmethod
+    def load_model(cls, file_path: str) -> "SimpleTFIDFClassifier":
+        """
+        Deserialize model state safely from a JSON file.
+        Raises ValueError if JSON file is invalid or malformed.
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            raise ValueError(f"Failed to read model file '{file_path}': {e}")
+
+        if not isinstance(data, dict):
+            raise ValueError("Invalid or malformed model file: root JSON object must be a dictionary.")
+
+        required_keys = ["ngram_range", "vocab", "idf", "class_priors", "feature_log_probs", "is_trained"]
+        for key in required_keys:
+            if key not in data:
+                raise ValueError(f"Invalid or malformed model file: missing required key '{key}'.")
+
+        ngram_range = validate_ngram_range(data["ngram_range"])
+        classifier = cls(ngram_range=ngram_range)
+
+        classifier.vocab = dict(data["vocab"])
+        classifier.idf = {k: float(v) for k, v in data["idf"].items()}
+        classifier.class_priors = {k: float(v) for k, v in data["class_priors"].items()}
+        classifier.feature_log_probs = {
+            lbl: {term: float(prob) for term, prob in terms.items()}
+            for lbl, terms in data["feature_log_probs"].items()
+        }
+        classifier.is_trained = bool(data["is_trained"])
+
+        return classifier
