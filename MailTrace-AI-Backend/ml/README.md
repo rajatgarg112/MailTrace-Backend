@@ -220,13 +220,16 @@ Deterministic helper functions used for feature extraction:
 
 ---
 
-## 11. Dataset & Preprocessing (`ml/datasets/preprocessor.py`)
+## 11. Dataset & Preprocessing (`ml/datasets/`)
 
-- `clean_html_and_normalize(raw_text)`: Decodes HTML entities (`html.unescape`), strips HTML tags, and normalizes consecutive whitespace.
-- `prepare_dataset_split(samples, train_ratio, seed)`: Splits text samples into train/test sets reproducibly using a fixed random seed.
+- `clean_html_and_normalize(raw_text)`: Strips block-level HTML tags with space separation and inline tags without space, unescapes HTML entities (`html.unescape`), and normalizes whitespace while preserving security-critical punctuation, numbers, and currency tokens.
+- `DatasetRecord`: Pydantic schema for validating record text non-emptiness and target label schema (`phishing`, `spam`, `benign`).
+- `DatasetLoader`: Utilities to load and validate structured records from Python tuples, dictionaries, or JSON payloads (`from_tuples`, `from_dicts`, `from_json_string`).
+- `prepare_dataset_split(samples, train_ratio, seed)`: 2-way reproducible dataset splitter (backward compatible).
+- `split_dataset_3way(samples, train_ratio, val_ratio, test_ratio, seed, deduplicate)`: 3-way reproducible train/validation/test splitter with ratio validation and automatic deduplication across partitions to prevent data leakage.
 
-> **[NOTE] Dataset Status**  
-> No external static production dataset file (e.g. large CSV/JSON corpus) is currently committed under `ml/datasets/`. The baseline classifier initializes using small seed vectors for unit testing and demonstration purposes.
+> **[NOTE] Data Leakage Prevention & Dataset Status**
+> To prevent data leakage, identical duplicate records across splits are filtered out via `deduplicate_samples()` prior to partitioning. Vocabulary and IDF statistics are derived strictly from training sets. No external static production dataset file (e.g. large CSV/JSON corpus) is committed in `ml/datasets/`; real external datasets can be ingested at runtime via `DatasetLoader`.
 
 ---
 
@@ -249,13 +252,13 @@ The ML module adheres to privacy and security requirements:
 
 ## 14. Testing Suite
 
-The unit test suite under `ml/tests/` verifies all analyzers, models, preprocessing utilities, and evaluation metrics:
+The unit test suite under `ml/tests/` verifies all analyzers, models, preprocessing utilities, dataset loading, data leakage safeguards, and evaluation metrics:
 
 ```bash
 python -m pytest ml/tests/
 ```
 
-**Verified Test Summary:** 14 passed in 0.31s.
+**Verified Test Summary:** 24 passed in 0.28s (14 baseline analyzer tests + 10 dataset pipeline & leakage tests).
 
 ---
 
@@ -265,8 +268,20 @@ python -m pytest ml/tests/
 from ml.nlp.nlp_analyzer import ContentNLPAnalyzer
 from ml.bec.bec_analyzer import BECAnalyzer
 from ml.behavioral.behavioral_analyzer import BehavioralAnalyzer
+from ml.datasets.dataset_loader import DatasetLoader
+from ml.datasets.preprocessor import split_dataset_3way
 
-# 1. Content / NLP Analysis
+# 1. Loading & Splitting a Dataset reproducibly
+raw_samples = [
+    ("Urgent: reset your password immediately", "phishing"),
+    ("Weekly team status report attached", "benign"),
+    ("Exclusive discount offer claim now", "spam")
+]
+records = DatasetLoader.from_tuples(raw_samples)
+splits = split_dataset_3way(raw_samples, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, seed=42)
+print(f"Train samples: {len(splits.train_text)}, Val: {len(splits.val_text)}, Test: {len(splits.test_text)}")
+
+# 2. Content / NLP Analysis
 nlp_analyzer = ContentNLPAnalyzer()
 nlp_res = nlp_analyzer.analyze(
     subject="URGENT: Password Reset Required",
