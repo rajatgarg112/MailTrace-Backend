@@ -259,7 +259,10 @@ The unit test suite under `ml/tests/` verifies all analyzers, models, preprocess
 python -m pytest ml/tests/
 ```
 
-**Verified Test Summary:** 41 passed in 0.41s (14 baseline analyzer tests + 10 dataset pipeline tests + 10 feature engineering tests + 7 model persistence & validation tests).
+**Verified Test Summary:** 43 passed in 0.26s (14 baseline analyzer tests + 10 dataset pipeline tests + 10 feature engineering tests + 7 model persistence & validation tests + 2 evaluation pipeline & consistency tests).
+
+> **[NOTE] Pipeline Validation vs Production Evaluation**  
+> Evaluation tests in `ml/tests/test_evaluation.py` validate end-to-end pipeline mechanics, data separation, and determinism using synthetic test fixtures. They verify structural correctness and do **NOT** establish or claim production model performance.
 
 ---
 
