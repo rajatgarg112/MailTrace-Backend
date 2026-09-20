@@ -3,7 +3,7 @@ Canonical schemas for ML/AI analyzers matching SECURITY_FEATURE_SCHEMA.md and AN
 """
 
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Finding(BaseModel):
@@ -20,6 +20,36 @@ class AnalyzerResult(BaseModel):
     features: Dict[str, Any] = Field(default_factory=dict)
     findings: List[Finding] = Field(default_factory=list)
     error_message: Optional[str] = None
+
+
+class MLPredictionResult(BaseModel):
+    """Structured result model for ML classifier inference."""
+    prediction: str = Field(..., description="Highest-probability predicted class label")
+    confidence: float = Field(..., description="Maximum predicted class probability score [0.0, 1.0]")
+    model_version: str = Field(default="1.0", description="Model version string")
+    probabilities: Dict[str, float] = Field(default_factory=dict, description="Full class probability distribution")
+
+    @field_validator("confidence")
+    @classmethod
+    def validate_confidence(cls, v: float) -> float:
+        if not (0.0 <= v <= 1.0):
+            raise ValueError(f"Confidence must be bounded to [0.0, 1.0], got {v}")
+        return round(float(v), 4)
+
+    @field_validator("prediction")
+    @classmethod
+    def validate_prediction(cls, v: str) -> str:
+        if not v or not isinstance(v, str):
+            raise ValueError("Prediction label must be a non-empty string.")
+        return v.strip()
+
+
+class MLEngineResult(BaseModel):
+    """Unified container for all ML module signals emitted by analyze_email_ml()."""
+    prediction: MLPredictionResult
+    nlp: AnalyzerResult
+    bec: AnalyzerResult
+    behavioral: AnalyzerResult
 
 
 class ContentNLPFeatures(BaseModel):

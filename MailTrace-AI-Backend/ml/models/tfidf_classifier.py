@@ -7,6 +7,7 @@ import json
 import math
 import re
 from typing import List, Dict, Tuple, Optional, Any
+from ml.schemas import MLPredictionResult
 
 
 def validate_ngram_range(ngram_range: Any) -> Tuple[int, int]:
@@ -32,8 +33,9 @@ class SimpleTFIDFClassifier:
     Supports configurable n-gram token ranges and safe JSON model serialization.
     """
 
-    def __init__(self, ngram_range: Tuple[int, int] = (1, 1)):
+    def __init__(self, ngram_range: Tuple[int, int] = (1, 1), model_version: str = "1.0"):
         self.ngram_range = validate_ngram_range(ngram_range)
+        self.model_version: str = str(model_version)
         self.vocab: Dict[str, int] = {}
         self.idf: Dict[str, float] = {}
         self.class_priors: Dict[str, float] = {}
@@ -125,6 +127,22 @@ class SimpleTFIDFClassifier:
 
         return {lbl: val / sum_exp for lbl, val in exp_scores.items()}
 
+    def predict(self, text: str) -> MLPredictionResult:
+        """
+        Convenience inference method returning structured MLPredictionResult.
+        Calls predict_proba() without retraining or mutating model state.
+        """
+        probs = self.predict_proba(text)
+        best_label = max(probs, key=probs.get)
+        confidence = probs[best_label]
+
+        return MLPredictionResult(
+            prediction=best_label,
+            confidence=confidence,
+            model_version=self.model_version,
+            probabilities=probs
+        )
+
     def save_model(self, file_path: str) -> None:
         """
         Serialize trained model state safely to a JSON file.
@@ -134,7 +152,7 @@ class SimpleTFIDFClassifier:
             raise ValueError("Cannot save an untrained model.")
 
         model_data = {
-            "version": "1.0",
+            "version": self.model_version,
             "ngram_range": list(self.ngram_range),
             "vocab": self.vocab,
             "idf": self.idf,
@@ -167,7 +185,8 @@ class SimpleTFIDFClassifier:
                 raise ValueError(f"Invalid or malformed model file: missing required key '{key}'.")
 
         ngram_range = validate_ngram_range(data["ngram_range"])
-        classifier = cls(ngram_range=ngram_range)
+        version = str(data.get("version", "1.0"))
+        classifier = cls(ngram_range=ngram_range, model_version=version)
 
         classifier.vocab = dict(data["vocab"])
         classifier.idf = {k: float(v) for k, v in data["idf"].items()}
