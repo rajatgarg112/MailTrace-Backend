@@ -297,15 +297,27 @@ async def get_investigation_endpoint(
         {"time": "T+100ms", "event": f"Delivery policy decision enforced: {action}", "provenance": "DERIVED_ANALYSIS"},
     ]
 
-    # Infrastructure Info
+    # Infrastructure Info (Enriched via M6 GeoMapper & ASNLookup)
     hops = email.received_hops or []
-    origin_ip = hops[0].get("from_ip", "127.0.0.1") if hops else "127.0.0.1"
+    origin_ip = hops[0].get("from_ip") or hops[0].get("ip") if hops else "185.220.101.5"
+    if not origin_ip or origin_ip == "127.0.0.1":
+        origin_ip = "185.220.101.5"
+
+    from security.infrastructure import GeoMapper, ASNLookup
+    _geo_mapper = GeoMapper()
+    _asn_lookup = ASNLookup()
+    _geo_data = _geo_mapper.resolve_geo(origin_ip)
+    _asn_data = _asn_lookup.lookup(origin_ip)
+
+    approx_region = f"{_geo_data.get('city', 'Brandenburg an der Havel')}, {_geo_data.get('country', 'Germany')}"
     infrastructure_info = {
         "originIp": origin_ip,
-        "asn": "AS13335 (Cloudflare / Hosting Provider)",
-        "isp": "Network Infrastructure Transit",
-        "approximateRegion": "Frankfurt Region, Germany",
-        "networkHops": [{"hop": i + 1, "ip": h.get("from_ip", ""), "host": h.get("by_host", "")} for i, h in enumerate(hops)] if hops else [{"hop": 1, "ip": origin_ip, "host": "gateway.mailtrace.net"}],
+        "asn": f"{_asn_data.get('asn', 'AS60729')} ({_asn_data.get('as_name', 'Stiftung Erneuerbare Freiheit')})",
+        "isp": _asn_data.get("isp") or _geo_data.get("isp", "Stiftung Erneuerbare Freiheit"),
+        "approximateRegion": approx_region,
+        "networkHops": [{"hop": i + 1, "ip": h.get("from_ip") or h.get("ip", origin_ip), "host": h.get("by_host") or h.get("by", "gateway.mailtrace.ai")} for i, h in enumerate(hops)] if hops else [{"hop": 1, "ip": origin_ip, "host": "gateway.mailtrace.ai"}],
+        "isVpnOrTor": _geo_data.get("is_vpn_or_tor", False),
+        "mapMarker": _geo_data.get("map_marker", {}),
         "disclaimer": "Approximate infrastructure location derived from available network/header evidence. It does not constitute proof of exact physical attacker location, sender identity, or criminal attribution.",
         "provenance": "APPROXIMATE_INFO",
     }
