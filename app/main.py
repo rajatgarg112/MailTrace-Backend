@@ -24,6 +24,10 @@ app.add_middleware(
 setup_exception_handlers(app)
 
 
+from app.db.database import Base, engine
+# Ensure database schema exists on startup
+Base.metadata.create_all(bind=engine)
+
 from app.api.v1.router import api_v1_router
 
 # Include API v1 router (and /api alias for contract compatibility)

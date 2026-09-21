@@ -334,6 +334,9 @@ async def analyze_email_endpoint(
         if evidence_db:
             forensic_repo.attach_evidence_to_case(case_db.id, evidence_db.id)
 
+    # Commit all persisted records (email, analysis_run, findings, decision, ml, forensics)
+    db.commit()
+
     # 14. Response Construction
     return EmailAnalysisResponse(
         analysis_id=analysis_run.analysis_id,
