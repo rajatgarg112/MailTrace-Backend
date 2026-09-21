@@ -33,9 +33,15 @@ class SimpleTFIDFClassifier:
     Supports configurable n-gram token ranges and safe JSON model serialization.
     """
 
-    def __init__(self, ngram_range: Tuple[int, int] = (1, 1), model_version: str = "1.0"):
+    def __init__(
+        self,
+        ngram_range: Tuple[int, int] = (1, 1),
+        model_version: str = "1.0",
+        metadata: Optional[Dict[str, Any]] = None
+    ):
         self.ngram_range = validate_ngram_range(ngram_range)
         self.model_version: str = str(model_version)
+        self.metadata: Dict[str, Any] = dict(metadata) if metadata else {}
         self.vocab: Dict[str, int] = {}
         self.idf: Dict[str, float] = {}
         self.class_priors: Dict[str, float] = {}
@@ -158,6 +164,7 @@ class SimpleTFIDFClassifier:
             "idf": self.idf,
             "class_priors": self.class_priors,
             "feature_log_probs": self.feature_log_probs,
+            "metadata": self.metadata,
             "is_trained": True
         }
 
@@ -186,7 +193,8 @@ class SimpleTFIDFClassifier:
 
         ngram_range = validate_ngram_range(data["ngram_range"])
         version = str(data.get("version", "1.0"))
-        classifier = cls(ngram_range=ngram_range, model_version=version)
+        metadata = dict(data.get("metadata", {}))
+        classifier = cls(ngram_range=ngram_range, model_version=version, metadata=metadata)
 
         classifier.vocab = dict(data["vocab"])
         classifier.idf = {k: float(v) for k, v in data["idf"].items()}

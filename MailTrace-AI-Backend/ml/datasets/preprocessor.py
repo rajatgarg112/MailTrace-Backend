@@ -109,11 +109,12 @@ def split_dataset_3way(
     val_ratio: float = 0.15,
     test_ratio: float = 0.15,
     seed: int = 42,
-    deduplicate: bool = True
+    deduplicate: bool = True,
+    stratify: bool = False
 ) -> DatasetSplitResult:
     """
     Reproducibly splits dataset into Train, Validation, and Test sets.
-    Validates ratio constraints and prevents data leakage across splits.
+    Validates ratio constraints, prevents data leakage across splits, and optionally stratifies by label.
     """
     if not samples:
         return DatasetSplitResult(
@@ -139,21 +140,49 @@ def split_dataset_3way(
         clean_samples = [(clean_html_and_normalize(t), l.strip().lower()) for t, l in samples]
 
     rng = random.Random(seed)
-    shuffled = clean_samples.copy()
-    rng.shuffle(shuffled)
 
-    n_total = len(shuffled)
-    n_train = int(n_total * train_ratio)
-    n_val = int(n_total * val_ratio)
+    if stratify:
+        # Group clean samples by label
+        by_label: Dict[str, List[Tuple[str, str]]] = {}
+        for s in clean_samples:
+            by_label.setdefault(s[1], []).append(s)
 
-    # Adjust indices for very small datasets
-    if n_total >= 3:
-        if n_train == 0: n_train = 1
-        if n_val == 0: n_val = 1
+        train_set = []
+        val_set = []
+        test_set = []
 
-    train_set = shuffled[:n_train]
-    val_set = shuffled[n_train:n_train + n_val]
-    test_set = shuffled[n_train + n_val:]
+        for lbl in sorted(by_label.keys()):
+            group = by_label[lbl].copy()
+            rng.shuffle(group)
+            n_grp = len(group)
+            n_tr = int(n_grp * train_ratio)
+            n_v = int(n_grp * val_ratio)
+            if n_grp >= 3:
+                if n_tr == 0: n_tr = 1
+                if n_v == 0: n_v = 1
+            train_set.extend(group[:n_tr])
+            val_set.extend(group[n_tr:n_tr + n_v])
+            test_set.extend(group[n_tr + n_v:])
+
+        rng.shuffle(train_set)
+        rng.shuffle(val_set)
+        rng.shuffle(test_set)
+    else:
+        shuffled = clean_samples.copy()
+        rng.shuffle(shuffled)
+
+        n_total = len(shuffled)
+        n_train = int(n_total * train_ratio)
+        n_val = int(n_total * val_ratio)
+
+        # Adjust indices for very small datasets
+        if n_total >= 3:
+            if n_train == 0: n_train = 1
+            if n_val == 0: n_val = 1
+
+        train_set = shuffled[:n_train]
+        val_set = shuffled[n_train:n_train + n_val]
+        test_set = shuffled[n_train + n_val:]
 
     return DatasetSplitResult(
         train_text=[s[0] for s in train_set],
@@ -164,3 +193,34 @@ def split_dataset_3way(
         test_labels=[s[1] for s in test_set],
         deduplicated_count=dedup_count
     )
+
+
+def audit_split_data_leakage(
+    train_text: List[str],
+    val_text: List[str],
+    test_text: List[str]
+) -> Dict[str, Any]:
+    """
+    Explicitly checks for data leakage between train, validation, and test partitions.
+    Returns audit statistics and flags any overlapping samples.
+    """
+    set_train = set(train_text)
+    set_val = set(val_text)
+    set_test = set(test_text)
+
+    overlap_train_val = set_train.intersection(set_val)
+    overlap_train_test = set_train.intersection(set_test)
+    overlap_val_test = set_val.intersection(set_test)
+
+    has_leakage = bool(overlap_train_val or overlap_train_test or overlap_val_test)
+
+    return {
+        "train_count": len(train_text),
+        "val_count": len(val_text),
+        "test_count": len(test_text),
+        "overlap_train_val_count": len(overlap_train_val),
+        "overlap_train_test_count": len(overlap_train_test),
+        "overlap_val_test_count": len(overlap_val_test),
+        "has_leakage": has_leakage,
+        "leakage_clean": not has_leakage
+    }
