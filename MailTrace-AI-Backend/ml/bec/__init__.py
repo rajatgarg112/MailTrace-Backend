@@ -1,3 +1,0 @@
-"""
-BEC / Impersonation Module Package
-"""
