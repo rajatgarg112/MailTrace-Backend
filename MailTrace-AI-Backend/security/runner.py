@@ -1,17 +1,23 @@
 import uuid
 from typing import Dict, Any, Optional, List
-from security.models import SecurityResult, AuthStatus
+from security.models import (
+    SecurityResult, AuthStatus, ThreatClassification, DeliveryAction,
+    PolicyDecision, DomainAnalysisResult
+)
 from security.header_analysis import HeaderParser, HeaderAnomalyDetector
 from security.authentication import SPFEvaluator, DKIMEvaluator, DMARCEvaluator
 from security.domain_analysis import LookalikeDomainDetector, TyposquattingDetector, TLDInspector
 from security.url_analysis import URLExtractor, RedirectChainAnalyzer, URLDomainReputationAnalyzer
 from security.relay_analysis import HopCounter, RelayVerifier
+from security.attachment_analysis import StaticAttachmentInspector
+from security.forensic import ForensicEvidenceEngine
 
 
 class SecurityAnalyzer:
     """
-    Unified Security Analysis Orchestrator for Member 4.
-    Runs all static security checks and outputs canonical SecurityResult payload.
+    Unified Top-Notch Security Analysis & Policy Decision Orchestrator for Member 4.
+    Runs all static security checks, computes 0-100 Risk Score, maps Threat Classification
+    and Delivery Action, and outputs cryptographic evidence & timeline logs.
     """
 
     def __init__(self):
@@ -28,8 +34,17 @@ class SecurityAnalyzer:
         self.url_reputation_analyzer = URLDomainReputationAnalyzer()
         self.hop_counter = HopCounter()
         self.relay_verifier = RelayVerifier()
+        self.attachment_inspector = StaticAttachmentInspector()
+        self.forensic_engine = ForensicEvidenceEngine()
 
-    def analyze(self, raw_headers_or_dict: Any, body_text_or_html: Optional[str] = None, email_id: Optional[str] = None) -> SecurityResult:
+    def analyze(
+        self,
+        raw_headers_or_dict: Any,
+        body_text_or_html: Optional[str] = None,
+        attachments_input: Optional[List[str]] = None,
+        email_id: Optional[str] = None
+    ) -> SecurityResult:
+        
         if not email_id:
             email_id = f"eml_{uuid.uuid4().hex[:12]}"
 
@@ -84,18 +99,18 @@ class SecurityAnalyzer:
             security_tags.append("DISPLAY_NAME_SPOOF")
             risk_score_contrib += 25
 
-        domain_result = {
-            "domain": from_domain,
-            "is_lookalike": is_lookalike,
-            "target_brand_domain": target_brand,
-            "lookalike_distance": distance,
-            "is_typosquatted": is_typo,
-            "suspicious_tld": susp_tld,
-            "display_name_spoofed": display_spoof,
-            "claimed_display_name": from_display,
-            "actual_sender_email": from_addr,
-            "findings": all_domain_findings,
-        }
+        domain_result = DomainAnalysisResult(
+            domain=from_domain,
+            is_lookalike=is_lookalike,
+            target_brand_domain=target_brand,
+            lookalike_distance=distance,
+            is_typosquatted=is_typo,
+            suspicious_tld=susp_tld,
+            display_name_spoofed=display_spoof,
+            claimed_display_name=from_display,
+            actual_sender_email=from_addr,
+            findings=all_domain_findings,
+        )
 
         # 4. URL Analysis
         urls, has_anchor_mismatch, anchor_mismatches = self.url_extractor.extract_urls(body_text_or_html or "")
@@ -123,8 +138,62 @@ class SecurityAnalyzer:
             security_tags.append("SUSPICIOUS_RELAY")
             risk_score_contrib += 15
 
+        # 6. Attachment Inspection
+        attachment_result = self.attachment_inspector.analyze_attachments(attachments_input or [])
+        if attachment_result.dangerous_attachments_count > 0:
+            security_tags.append("DANGEROUS_ATTACHMENT")
+            risk_score_contrib += 35
+        if attachment_result.has_double_extension:
+            security_tags.append("DOUBLE_EXTENSION_SPOOF")
+            risk_score_contrib += 40
+
         # Cap risk score contribution at 100
-        final_risk_contrib = min(100, risk_score_contrib)
+        final_risk_score = min(100, risk_score_contrib)
+
+        # 7. Threat Classification & Delivery Policy Mapping
+        if final_risk_score >= 76:
+            classification = ThreatClassification.MALICIOUS
+            action = DeliveryAction.QUARANTINE
+            reason = f"High threat risk score ({final_risk_score}/100) triggered automatic QUARANTINE policy."
+        elif final_risk_score >= 56:
+            classification = ThreatClassification.SUSPICIOUS
+            action = DeliveryAction.WARN
+            reason = f"Elevated threat risk score ({final_risk_score}/100) triggered inbox WARNING policy."
+        elif final_risk_score >= 21:
+            classification = ThreatClassification.SPAM
+            action = DeliveryAction.SPAM
+            reason = f"Low-level spam/promotional signals detected ({final_risk_score}/100). Routed to SPAM."
+        elif not from_domain and not raw_headers_or_dict:
+            classification = ThreatClassification.UNKNOWN
+            action = DeliveryAction.HOLD
+            reason = "Insufficient email payload data for conclusive analysis. Held for review."
+        else:
+            classification = ThreatClassification.SAFE
+            action = DeliveryAction.INBOX
+            reason = f"Low risk score ({final_risk_score}/100). Email verified SAFE for INBOX delivery."
+
+        policy_decision = PolicyDecision(
+            risk_score=final_risk_score,
+            threat_classification=classification,
+            delivery_action=action,
+            action_reason=reason
+        )
+
+        # 8. Cryptographic Evidence & Forensics Engine
+        raw_headers_str = str(raw_headers_or_dict)
+        body_str = body_text_or_html or ""
+        auth_status_str = f"SPF={auth_result.spf.value}, DKIM={auth_result.dkim.value}, DMARC={auth_result.dmarc.value}"
+        
+        forensic_result = self.forensic_engine.generate_forensic_report(
+            raw_headers_str=raw_headers_str,
+            body_text_str=body_str,
+            originating_ip=originating_ip,
+            auth_status_str=auth_status_str,
+            domain_findings_count=len(all_domain_findings),
+            url_count=len(urls),
+            risk_score=final_risk_score,
+            action_str=action.value
+        )
 
         return SecurityResult(
             email_id=email_id,
@@ -133,6 +202,9 @@ class SecurityAnalyzer:
             domain_analysis=domain_result,
             url_analysis=url_result,
             relay_analysis=relay_result,
+            attachments=attachment_result,
+            forensics=forensic_result,
+            policy_decision=policy_decision,
             security_tags=security_tags,
-            risk_score_contribution=final_risk_contrib,
+            risk_score_contribution=final_risk_score
         )

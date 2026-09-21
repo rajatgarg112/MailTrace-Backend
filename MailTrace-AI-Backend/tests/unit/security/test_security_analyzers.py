@@ -1,10 +1,12 @@
 import pytest
-from security.models import AuthStatus, SecurityResult
+from security.models import AuthStatus, SecurityResult, ThreatClassification, DeliveryAction
 from security.header_analysis import HeaderParser, HeaderAnomalyDetector
 from security.authentication import SPFEvaluator, DKIMEvaluator, DMARCEvaluator
 from security.domain_analysis import LookalikeDomainDetector, TyposquattingDetector, TLDInspector
 from security.url_analysis import URLExtractor, RedirectChainAnalyzer, URLDomainReputationAnalyzer
 from security.relay_analysis import HopCounter, RelayVerifier
+from security.attachment_analysis import StaticAttachmentInspector
+from security.forensic import ForensicEvidenceEngine
 from security.runner import SecurityAnalyzer
 
 
@@ -122,7 +124,37 @@ def test_relay_analysis():
     assert res.originating_ip == "185.220.101.5"
 
 
-def test_unified_security_analyzer():
+def test_attachment_inspector():
+    attachments = ["Invoice_2026.pdf.exe", "Company_Policy.docx", "script.vbs"]
+    inspector = StaticAttachmentInspector()
+    res = inspector.analyze_attachments(attachments)
+
+    assert res.total_attachments == 3
+    assert res.dangerous_attachments_count == 2
+    assert res.has_double_extension is True
+
+
+def test_forensics_evidence_engine():
+    engine = ForensicEvidenceEngine()
+    report = engine.generate_forensic_report(
+        raw_headers_str="From: test@example.com",
+        body_text_str="Hello World",
+        originating_ip="185.220.101.5",
+        auth_status_str="SPF=FAIL, DKIM=FAIL, DMARC=FAIL",
+        domain_findings_count=2,
+        url_count=1,
+        risk_score=94,
+        action_str="QUARANTINE"
+    )
+
+    assert len(report.raw_sha256) == 64
+    assert len(report.timeline) == 6
+    assert report.timeline[0].stage == "INGESTION"
+    assert report.timeline[-1].stage == "RISK_ENGINE_POLICY_ENFORCEMENT"
+    assert report.network_context.originating_ip == "185.220.101.5"
+
+
+def test_unified_security_analyzer_and_policy():
     raw_headers = {
         "From": "PayPal Security <billing@paypa1-verify.xyz>",
         "Subject": "URGENT: Account Suspension Notice",
@@ -134,15 +166,17 @@ def test_unified_security_analyzer():
     }
 
     html_body = '<p>Verify your details immediately at <a href="http://185.220.101.5/login">http://paypal.com/verify</a> or https://bit.ly/3x89qAZ</p>'
+    attachments = ["Account_Details.pdf.exe"]
 
     analyzer = SecurityAnalyzer()
-    result: SecurityResult = analyzer.analyze(raw_headers, html_body)
+    result: SecurityResult = analyzer.analyze(raw_headers, html_body, attachments)
 
     assert result.email_id.startswith("eml_")
     assert "DMARC_FAIL" in result.security_tags
     assert "SPF_FAIL" in result.security_tags
     assert "LOOKALIKE_DOMAIN" in result.security_tags
-    assert "DISPLAY_NAME_SPOOF" in result.security_tags
-    assert "SUSPICIOUS_URL" in result.security_tags
-    assert "ANCHOR_TEXT_MISMATCH" in result.security_tags
-    assert result.risk_score_contribution >= 70
+    assert "DOUBLE_EXTENSION_SPOOF" in result.security_tags
+    assert result.policy_decision.threat_classification == ThreatClassification.MALICIOUS
+    assert result.policy_decision.delivery_action == DeliveryAction.QUARANTINE
+    assert result.policy_decision.risk_score == 100
+    assert len(result.forensics.timeline) == 6

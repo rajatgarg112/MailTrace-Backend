@@ -1,17 +1,16 @@
 """
 MailTrace-AI Security Subsystem (Member 4) — Interactive Demo Test Script
-Run this script to analyze sample emails or test your own custom headers/body payloads.
+Run this script to test custom email payloads, attachments, and forensic outputs.
 """
 
 import json
 from security.runner import SecurityAnalyzer
 
 def run_demo():
-    print("=" * 70)
-    print(" MailTrace-AI Security Engine (Member 4) — Interactive Test Demo")
-    print("=" * 70)
+    print("=" * 75)
+    print(" MailTrace-AI Security & Forensics Engine (Member 4) — CLI Test Runner")
+    print("=" * 75)
 
-    # Sample 1: Phishing Email Impersonating PayPal
     sample_headers = {
         "From": "PayPal Security Team <billing@paypa1-verify.xyz>",
         "Subject": "URGENT: Your Account Has Been Temporarily Suspended",
@@ -37,37 +36,39 @@ def run_demo():
     </html>
     """
 
-    print("\n--> Analyzing Sample Phishing Email Payload...\n")
+    sample_attachments = ["Account_Verification_Document.pdf.exe", "Instructions.txt"]
+
+    print("\n--> Analyzing Sample Phishing & Attachment Payload...\n")
 
     analyzer = SecurityAnalyzer()
-    result = analyzer.analyze(sample_headers, sample_html_body)
+    result = analyzer.analyze(
+        raw_headers_or_dict=sample_headers,
+        body_text_or_html=sample_html_body,
+        attachments_input=sample_attachments
+    )
 
-    # Convert Pydantic result model to JSON dict
     result_dict = result.model_dump()
 
-    print("=== ANALYSIS RESULTS ===")
+    print("=== SECURITY & POLICY DECISION ===")
     print(f"Email ID:                   {result.email_id}")
+    print(f"Threat Classification:      {result.policy_decision.threat_classification.value}")
+    print(f"Delivery Action Enforced:   {result.policy_decision.delivery_action.value}")
+    print(f"Action Reason:              {result.policy_decision.action_reason}")
+    print(f"Risk Score:                 {result.policy_decision.risk_score} / 100")
     print(f"Assigned Security Tags:     {result.security_tags}")
-    print(f"Risk Score Contribution:    {result.risk_score_contribution} / 100")
-    print("-" * 70)
-    print("Header Anomalies:           ", result.headers.anomalies)
-    print("SPF Status:                 ", result.authentication.spf.value)
-    print("DKIM Status:                ", result.authentication.dkim.value)
-    print("DMARC Status:               ", result.authentication.dmarc.value)
+    print("-" * 75)
+    print("SPF / DKIM / DMARC:         ", f"{result.authentication.spf.value} / {result.authentication.dkim.value} / {result.authentication.dmarc.value}")
     print("Lookalike Domain Flag:      ", result.domain_analysis.is_lookalike)
-    print("Target Brand:               ", result.domain_analysis.target_brand_domain)
-    print("Display Name Spoof Flag:    ", result.domain_analysis.display_name_spoofed)
-    print("Suspicious TLD Flag:        ", result.domain_analysis.suspicious_tld)
-    print("Total URLs Extracted:       ", result.url_analysis.total_urls)
-    print("Suspicious URLs Count:      ", result.url_analysis.suspicious_urls_count)
-    print("Anchor Text Mismatch Flag:  ", result.url_analysis.anchor_text_mismatch_detected)
-    print("Redirect Chain Flag:        ", result.url_analysis.redirect_chain_detected)
-    print("Originating IP Extracted:   ", result.relay_analysis.originating_ip)
-    print("-" * 70)
-    
-    print("\nFull Structured JSON Output:\n")
+    print("Target Brand Domain:        ", result.domain_analysis.target_brand_domain)
+    print("Dangerous Attachments:      ", result.attachments.dangerous_attachments_count)
+    print("Double Extension Flag:      ", result.attachments.has_double_extension)
+    print("Raw Payload SHA-256:        ", result.forensics.raw_sha256)
+    print("Originating Network IP:     ", result.forensics.network_context.originating_ip)
+    print("-" * 75)
+
+    print("\nFull Structured JSON Payload:\n")
     print(json.dumps(result_dict, indent=2))
-    print("=" * 70)
+    print("=" * 75)
 
 if __name__ == "__main__":
     run_demo()

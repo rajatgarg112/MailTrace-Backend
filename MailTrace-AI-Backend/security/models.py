@@ -11,6 +11,23 @@ class AuthStatus(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
+class ThreatClassification(str, Enum):
+    SAFE = "SAFE"
+    SPAM = "SPAM"
+    SUSPICIOUS = "SUSPICIOUS"
+    MALICIOUS = "MALICIOUS"
+    UNKNOWN = "UNKNOWN"
+
+
+class DeliveryAction(str, Enum):
+    INBOX = "INBOX"
+    SPAM = "SPAM"
+    WARN = "WARN"
+    HOLD = "HOLD"
+    QUARANTINE = "QUARANTINE"
+    REJECT = "REJECT"
+
+
 class AuthenticationResult(BaseModel):
     spf: AuthStatus = AuthStatus.UNKNOWN
     dkim: AuthStatus = AuthStatus.UNKNOWN
@@ -83,6 +100,53 @@ class HeaderAnalysisResult(BaseModel):
     anomalies: List[str] = Field(default_factory=list)
 
 
+class AttachmentDetails(BaseModel):
+    filename: str
+    extension: str
+    is_dangerous: bool = False
+    has_double_extension: bool = False
+    reason: Optional[str] = None
+
+
+class AttachmentAnalysisResult(BaseModel):
+    total_attachments: int = 0
+    dangerous_attachments_count: int = 0
+    has_double_extension: bool = False
+    attachments: List[AttachmentDetails] = Field(default_factory=list)
+    findings: List[str] = Field(default_factory=list)
+
+
+class TimelineEvent(BaseModel):
+    sequence: int
+    timestamp: str
+    stage: str
+    status: str
+    details: str
+
+
+class NetworkContext(BaseModel):
+    originating_ip: Optional[str] = None
+    asn: Optional[str] = None
+    isp: Optional[str] = None
+    approximate_region: Optional[str] = None
+    disclaimer: str = "Approximate network infrastructure location, not verified physical identity."
+
+
+class ForensicResult(BaseModel):
+    raw_sha256: str
+    headers_sha256: str
+    body_sha256: str
+    timeline: List[TimelineEvent] = Field(default_factory=list)
+    network_context: NetworkContext
+
+
+class PolicyDecision(BaseModel):
+    risk_score: int = Field(ge=0, le=100)
+    threat_classification: ThreatClassification
+    delivery_action: DeliveryAction
+    action_reason: str
+
+
 class SecurityResult(BaseModel):
     email_id: str
     headers: HeaderAnalysisResult
@@ -90,5 +154,8 @@ class SecurityResult(BaseModel):
     domain_analysis: DomainAnalysisResult
     url_analysis: URLAnalysisResult
     relay_analysis: RelayAnalysisResult
+    attachments: AttachmentAnalysisResult
+    forensics: ForensicResult
+    policy_decision: PolicyDecision
     security_tags: List[str] = Field(default_factory=list)
-    risk_score_contribution: int = 0
+    risk_score_contribution: int = Field(ge=0, le=100)
