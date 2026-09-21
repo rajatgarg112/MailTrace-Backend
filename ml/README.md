@@ -223,22 +223,73 @@ Deterministic helper functions used for feature extraction:
 
 ## 11. Dataset & Preprocessing (`ml/datasets/`)
 
-- `clean_html_and_normalize(raw_text)`: Strips block-level HTML tags with space separation and inline tags without space, unescapes HTML entities (`html.unescape`), and normalizes whitespace while preserving security-critical punctuation, numbers, and currency tokens.
+- `clean_html_and_normalize(raw_text)`: Strips block-level HTML tags with space separation and inline tags without space, unescapes HTML entities (`html.unescape`), and normalizes whitespace while preserving security-critical punctuation, numbers, domains, and currency tokens.
 - `DatasetRecord`: Pydantic schema for validating record text non-emptiness and target label schema (`phishing`, `spam`, `benign`).
-- `DatasetLoader`: Utilities to load and validate structured records from Python tuples, dictionaries, or JSON payloads (`from_tuples`, `from_dicts`, `from_json_string`).
+- `DatasetLoader`: Utilities to load and validate structured records from Python tuples, dictionaries, JSON payloads, and real CSV files:
+  - `from_tuples(records)`: Tuple loading.
+  - `from_dicts(records)`: Dictionary loading.
+  - `from_json_string(json_str)`: JSON string parsing.
+  - `from_csv(file_path, ...)` & `load_csv_with_stats(file_path, ...)`: Automated CSV loading with schema autodetection, label normalization, column validation, and malformed-row recovery.
 - `prepare_dataset_split(samples, train_ratio, seed)`: 2-way reproducible dataset splitter (backward compatible).
-- `split_dataset_3way(samples, train_ratio, val_ratio, test_ratio, seed, deduplicate)`: 3-way reproducible train/validation/test splitter with ratio validation and automatic deduplication across partitions to prevent data leakage.
+- `split_dataset_3way(samples, train_ratio, val_ratio, test_ratio, seed, deduplicate, stratify)`: 3-way reproducible train/validation/test splitter with ratio validation, label stratification, and automatic deduplication across partitions to prevent data leakage.
+- `audit_split_data_leakage(train_text, val_text, test_text)`: Explicit verification of zero overlap across partition boundaries.
 
-> **[NOTE] Data Leakage Prevention & Dataset Status**
-> To prevent data leakage, identical duplicate records across splits are filtered out via `deduplicate_samples()` prior to partitioning. Vocabulary and IDF statistics are derived strictly from training sets. No external static production dataset file (e.g. large CSV/JSON corpus) is committed in `ml/datasets/`; real external datasets can be ingested at runtime via `DatasetLoader`.
+### Real Datasets Audited in Repository (`data/`):
+1. **`spam_ham_dataset.csv`**:
+   - Total rows: 5,171 (3,672 ham, 1,499 spam).
+   - Columns: `['Unnamed: 0', 'label', 'text', 'label_num']`.
+   - Text column: `text`.
+   - Normalized label mapping: `ham` → `benign`, `spam` → `spam`.
+   - Deduplicated rows removed: 277.
+   - **Limitations:** Early 2000s Enron corporate correspondence and general spam. Contains no dedicated phishing, BEC, ransomware, or modern targeted spear-phishing labels.
+2. **`CEAS_08.csv`**:
+   - Total rows: 39,154 (21,842 label 1, 17,312 label 0).
+   - Columns: `['sender', 'receiver', 'date', 'subject', 'body', 'label', 'urls']`.
+   - Text column: `subject` + `body` combined.
+   - Normalized label mapping: `0` → `benign`, `1` → `spam`.
+   - Deduplicated rows removed: 191.
+   - **Limitations:** The `urls` column is a binary indicator (`0` or `1`), NOT URL strings. The dataset originates from the 2008 Collaboration: Evaluating Anti-Spam (CEAS) challenge where label 1 represents spam/unsolicited bulk email. It does not differentiate phishing from spam, nor does it contain BEC labels, ransomware labels, attachment payloads, or behavioral sender history.
 
 ---
 
 ## 12. Model Evaluation (`ml/evaluation/evaluator.py`)
 
-`evaluate_predictions(y_true, y_pred, positive_label)` calculates classification metrics directly from true and predicted label lists:
-- **Metrics Calculated:** Accuracy, Precision, Recall, F1 Score, True Positives (TP), False Positives (FP), True Negatives (TN), False Negatives (FN).
-- Contains no hard-coded or fabricated metrics; handles zero-division safely.
+- `evaluate_predictions(y_true, y_pred, positive_label)`: Calculates classification metrics directly from true and predicted label lists:
+  - **Metrics Calculated:** Accuracy, Precision, Recall, F1 Score, True Positives (TP), False Positives (FP), True Negatives (TN), False Negatives (FN).
+  - Contains no hard-coded or fabricated metrics; handles zero-division safely.
+- `evaluate_multiclass(y_true, y_pred, labels=None)`: Computes overall accuracy, macro-averaged precision, recall, and F1, as well as per-class precision, recall, F1, support, and confusion counts.
+
+### Actual Measured Evaluation Metrics (Reproducible with Seed 42):
+
+#### Model 1: `spam_ham_dataset` (70% Train: 3,425 | 15% Val: 733 | 15% Test: 736)
+- **Architecture:** TF-IDF Multinomial Naive Bayes, Unigrams `(1, 1)`, Vocab: 39,953
+- **Validation Set:**
+  - Accuracy: `0.9727`
+  - Precision: `0.9901`
+  - Recall: `0.9178`
+  - F1 Score: `0.9526`
+  - TP: 201 | FP: 2 | FN: 18 | TN: 512
+- **Test Set:**
+  - Accuracy: `0.9715`
+  - Precision: `0.9854`
+  - Recall: `0.9182`
+  - F1 Score: `0.9506`
+  - TP: 202 | FP: 3 | FN: 18 | TN: 513
+
+#### Model 2: `CEAS_08` (70% Train: 27,273 | 15% Val: 5,844 | 15% Test: 5,846)
+- **Architecture:** TF-IDF Multinomial Naive Bayes, Unigrams `(1, 1)`, Vocab: 149,010
+- **Validation Set:**
+  - Accuracy: `0.9779`
+  - Precision: `0.9994`
+  - Recall: `0.9609`
+  - F1 Score: `0.9798`
+  - TP: 3,124 | FP: 2 | FN: 127 | TN: 2,591
+- **Test Set:**
+  - Accuracy: `0.9772`
+  - Precision: `0.9987`
+  - Recall: `0.9603`
+  - F1 Score: `0.9792`
+  - TP: 3,123 | FP: 4 | FN: 129 | TN: 2,590
 
 ---
 
@@ -253,16 +304,23 @@ The ML module adheres to privacy and security requirements:
 
 ## 14. Testing Suite
 
-The unit test suite under `ml/tests/` verifies all analyzers, models, preprocessing utilities, dataset loading, data leakage safeguards, n-gram tokenization, model serialization, and evaluation metrics:
+The unit test suite under `ml/tests/` verifies all analyzers, models, preprocessing utilities, dataset loading, data leakage safeguards, n-gram tokenization, model serialization, evaluation metrics, and end-to-end real dataset training:
 
 ```bash
 python -m pytest ml/tests/
 ```
 
-**Verified Test Summary:** 47 passed in 0.34s (14 baseline analyzer tests + 10 dataset pipeline tests + 10 feature engineering tests + 7 model persistence & validation tests + 2 evaluation pipeline & consistency tests + 4 inference engine & contract tests).
+**Verified Test Summary:** 61 passed, 13 subtests passed in 0.41s:
+- 14 baseline analyzer tests (`test_nlp_analyzer.py`, `test_bec_analyzer.py`, `test_behavioral_analyzer.py`)
+- 10 dataset pipeline & leakage tests (`test_dataset_pipeline.py`)
+- 10 feature engineering tests (`test_feature_engineering.py`)
+- 7 model persistence & validation tests (`test_model_persistence.py`)
+- 2 evaluation pipeline tests (`test_evaluation.py`)
+- 4 inference engine & contract tests (`test_inference_engine.py`)
+- 14 real dataset pipeline tests (`test_real_dataset_pipeline.py`)
 
-> **[NOTE] Pipeline Validation vs Production Evaluation**  
-> Evaluation tests in `ml/tests/test_evaluation.py` validate end-to-end pipeline mechanics, data separation, and determinism using synthetic test fixtures. They verify structural correctness and do **NOT** establish or claim production model performance.
+> **[NOTE] Benchmark Evaluation vs Production Evaluation**  
+> Evaluation metrics reported above represent benchmark performance on historical test partitions (`spam_ham_dataset`, `CEAS_08`). They verify pipeline mechanics, data separation, and offline generalization. They do **NOT** establish production model performance on live email gateway traffic.
 
 ---
 
@@ -274,18 +332,20 @@ from ml.bec.bec_analyzer import BECAnalyzer
 from ml.behavioral.behavioral_analyzer import BehavioralAnalyzer
 from ml.datasets.dataset_loader import DatasetLoader
 from ml.datasets.preprocessor import split_dataset_3way
+from ml.models.tfidf_classifier import SimpleTFIDFClassifier
 
-# 1. Loading & Splitting a Dataset reproducibly
-raw_samples = [
-    ("Urgent: reset your password immediately", "phishing"),
-    ("Weekly team status report attached", "benign"),
-    ("Exclusive discount offer claim now", "spam")
-]
-records = DatasetLoader.from_tuples(raw_samples)
-splits = split_dataset_3way(raw_samples, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, seed=42)
-print(f"Train samples: {len(splits.train_text)}, Val: {len(splits.val_text)}, Test: {len(splits.test_text)}")
+# 1. Loading from CSV & Splitting reproducibly
+records, stats = DatasetLoader.load_csv_with_stats("data/spam_ham_dataset.csv/spam_ham_dataset.csv")
+raw_samples = [(r.text, r.label) for r in records]
+splits = split_dataset_3way(raw_samples, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, seed=42, stratify=True)
+print(f"Train: {len(splits.train_text)}, Val: {len(splits.val_text)}, Test: {len(splits.test_text)}")
 
-# 2. Content / NLP Analysis
+# 2. Training and Persisting Model
+clf = SimpleTFIDFClassifier(ngram_range=(1, 1), model_version="7.4.0")
+clf.train(splits.train_text, splits.train_labels)
+clf.save_model("ml/models/trained_tfidf_model.json")
+
+# 3. Content / NLP Analysis
 nlp_analyzer = ContentNLPAnalyzer()
 nlp_res = nlp_analyzer.analyze(
     subject="URGENT: Password Reset Required",
@@ -293,32 +353,15 @@ nlp_res = nlp_analyzer.analyze(
 )
 print("Phishing Score:", nlp_res.features["phishing_score"])
 print("Findings:", [f.code for f in nlp_res.findings])
-
-# 2. BEC / Impersonation Analysis
-bec_analyzer = BECAnalyzer()
-bec_res = bec_analyzer.analyze(
-    display_name="CEO John Smith",
-    from_address="john.smith.ceo123@gmail.com",
-    subject="Urgent wire transfer",
-    body="Please wire $50,000 to this vendor account ASAP."
-)
-print("Executive Impersonation Score:", bec_res.features["executive_impersonation_score"])
-
-# 3. Behavioral Analysis
-behavioral_analyzer = BehavioralAnalyzer()
-behavioral_res = behavioral_analyzer.analyze(
-    sender_address="alice@company.com",
-    recipient_count=1,
-    sender_history={"seen_before": True, "avg_daily_volume": 5.0, "recent_volume": 4.0}
-)
-print("Volume Anomaly:", behavioral_res.features["volume_anomaly"])
 ```
 
 ---
 
-## 16. Current Limitations
+## 16. Current Limitations & Production Status
 
-1. **Production Corpus:** No large external static benchmark dataset is committed in `ml/datasets/`; models run on seed vectors.
-2. **Heuristic Signals:** Rule-based functions rely on curated keyword patterns and regex heuristics.
-3. **Behavioral Baseline Dependency:** Behavioral anomaly detection relies on historical profile metrics passed into the analyzer by the backend host process.
-4. **Independent Signals:** ML outputs are security features and must be correlated with non-ML signals by the risk engine.
+1. **Production Corpus:** Real benchmark datasets (`spam_ham_dataset.csv`, `CEAS_08.csv`) are ingested for offline model training and evaluation. No live enterprise traffic corpus is currently connected.
+2. **Production Performance:** **NOT ESTABLISHED** (offline validation and test split performance are established, but live gateway production performance has not been measured in a live deployment environment).
+3. **Heuristic Signals:** Rule-based functions rely on curated keyword patterns and regex heuristics.
+4. **Behavioral Baseline Dependency:** Behavioral anomaly detection relies on historical profile metrics passed into the analyzer by the backend host process.
+5. **Independent Signals:** ML outputs are feature signals and must be correlated with non-ML signals (authentication, IP/domain reputation, headers) by the gateway orchestrator.
+
