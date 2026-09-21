@@ -1,355 +1,156 @@
-# MailTrace-AI — Two-Repository Project Specification
+# MailTrace-AI — Pre-Delivery Email Threat Detection Platform
 
-## Purpose
+## Overview
 
-MailTrace-AI is an AI-powered **pre-delivery email threat detection, geolocation and forensic intelligence platform** for SIH 2026 Problem Statement 26106.
+**MailTrace-AI** is an AI-powered pre-delivery email threat detection, geolocation, security analysis, and forensic intelligence platform built for **SIH 2026 Problem Statement 26106**.
 
-The project is intentionally split into **two GitHub repositories**:
-
-1. `MailTrace-AI-Frontend`
-2. `MailTrace-AI-Backend`
-
-The old combined repository remains an archive/reference and is not the active development structure.
+MailTrace-AI analyzes incoming email messages **before normal user inbox delivery**. It combines multi-layer email security checks, natural language understanding, machine learning threat detection, network infrastructure forensics, and customizable policy controls to make authoritative security decisions.
 
 ---
 
-## Final Git Structure
+## 1. System Architecture & Repository Structure
+
+MailTrace-AI is structured into **2 separate GitHub repositories**:
 
 ```text
 MAILTRACE-AI
 │
-├── MailTrace-AI-Frontend
+├── MailTrace-AI-Frontend (Repository 1)
 │   └── main
 │
-└── MailTrace-AI-Backend
+└── MailTrace-AI-Backend (Repository 2)
     ├── main
     ├── ml
     └── security
 ```
 
-There is **no separate database repository**. The database is backend-owned.
+> [!IMPORTANT]
+> There is **no separate database repository** and **no permanent database branch**. The database belongs to the backend (`MailTrace-AI-Backend/main`).
 
-| Repository | Branch | Responsibility |
-|---|---|---|
-| Frontend | `main` | React + Vite user/security dashboards and API integration |
-| Backend | `main` | FastAPI API, database, gateway orchestration, correlation, risk/policy, delivery |
-| Backend | `ml` | ML/NLP feature extraction, inference, training/evaluation utilities |
-| Backend | `security` | Header/authentication, sender/domain, URL, attachment, QR, relay, TI and forensic analysis |
+### Permanent Branch Map & Responsibilities
 
----
-
-## Product Goal
-
-MailTrace-AI is designed to inspect an incoming email **before normal user delivery**, combine independent security signals, calculate a risk decision, and apply a delivery policy.
-
-```text
-Incoming Email
-      ↓
-MailTrace Gateway
-      ↓
-Evidence Capture + Normalization
-      ↓
-Parallel Security Analysis
-      ↓
-Feature Extraction
-      ↓
-Security Tags
-      ↓
-Risk / Correlation Engine
-      ↓
-Classification + Confidence
-      ↓
-Delivery Policy
-      ├── Inbox
-      ├── Spam
-      ├── Warning / Hold
-      └── Quarantine
-      ↓
-Backend API
-      ↓
-Frontend
-```
-
-The current prototype may use its own MailTrace webmail/demo interface. Direct control of Gmail's internal delivery engine is **not** claimed. Gmail/Google Workspace integration is a future integration phase using official APIs/OAuth/Add-ons.
+| Repository | Branch | Primary Responsibility | Primary Owners |
+|---|---|---|---|
+| `MailTrace-AI-Frontend` | `main` | User & Security Dashboards, Webmail interface, REST integration | Member 1 |
+| `MailTrace-AI-Backend` | `main` | FastAPI REST API, Gateway Orchestration, Correlation, Risk Engine, Delivery Policy, Database | Member 2 & Member 5 |
+| `MailTrace-AI-Backend` | `ml` | Content/NLP analysis, BEC/Impersonation detection, Behavioral ML inference, Model training | Member 3 |
+| `MailTrace-AI-Backend` | `security` | Headers, Authentication (SPF/DKIM/DMARC), Domains, URLs, Relays, Attachments, QR, Forensics, Geo | Member 4 & Member 6 |
 
 ---
 
-## High-Level Architecture
+## 2. Six-Member Team Ownership Matrix
+
+| Member | Primary Role | Repository | Permanent Branch | Directory Boundaries | Key Deliverables |
+|---|---|---|---|---|---|
+| **Member 1** | Frontend Developer | `MailTrace-AI-Frontend` | `main` | Root frontend codebase | User & Security Dashboards, Webmail interface, Risk & Quarantine UI |
+| **Member 2** | Core Backend Engineer | `MailTrace-AI-Backend` | `main` | `app/` | FastAPI REST API, Gateway Orchestrator, Correlation & Risk Engine |
+| **Member 3** | ML / AI Engineer | `MailTrace-AI-Backend` | `ml` | `ml/` | NLP feature extraction, BEC detectors, ML inference engine |
+| **Member 4** | Cyber Security Analyst | `MailTrace-AI-Backend` | `security` | `security/header_analysis/`, `authentication/`, `domain_analysis/`, `url_analysis/`, `relay_analysis/` | SPF/DKIM/DMARC, lookalike domain detection, URL static inspection |
+| **Member 5** | Database & Data Engineer | `MailTrace-AI-Backend` | `main` | `database/` | Database schemas, ORM models, migrations, seed datasets |
+| **Member 6** | Forensics & Infrastructure | `MailTrace-AI-Backend` | `security` | `security/forensic/`, `evidence/`, `timeline/`, `infrastructure/` | Forensic evidence preservation, audit timelines, approximate geo-infrastructure |
+
+---
+
+## 3. High-Level Integration Topology
 
 ```text
                     ┌──────────────────────────────┐
                     │   MailTrace-AI Frontend      │
-                    │                              │
-                    │ React + Vite                 │
-                    │ User Dashboard               │
-                    │ Security Dashboard           │
+                    │   (React + Vite Dashboard)   │
                     └──────────────┬───────────────┘
-                                   │ HTTPS / REST
+                                   │ HTTPS / REST API
                                    ▼
                     ┌──────────────────────────────┐
                     │   MailTrace-AI Backend       │
-                    │                              │
-                    │ FastAPI API Layer             │
-                    │ Gateway / Orchestrator        │
-                    │ Risk + Policy Engine          │
+                    │   FastAPI API / Gateway      │
                     └──────────────┬───────────────┘
                                    │
-                ┌──────────────────┼──────────────────┐
-                ▼                  ▼                  ▼
-       ┌────────────────┐ ┌────────────────┐ ┌─────────────────┐
-       │ Security Branch│ │ ML Branch      │ │ Backend Services │
-       │ `security`     │ │ `ml`           │ │ `main`           │
-       │                │ │                │ │                 │
-       │ Headers/Auth   │ │ NLP/BEC        │ │ Correlation     │
-       │ Domain/URL     │ │ Features       │ │ Risk Engine     │
-       │ Files/QR       │ │ Inference      │ │ Delivery Policy │
-       │ TI/Forensics   │ │ Evaluation     │ │ API + DB        │
-       └───────┬────────┘ └───────┬────────┘ └────────┬────────┘
-               └──────────────────┬┴──────────────────┘
-                                  ▼
-                         ┌─────────────────┐
-                         │ Backend Database│
-                         │ SQLite/MySQL    │
-                         └─────────────────┘
+         ┌─────────────────────────┼─────────────────────────┐
+         ▼                         ▼                         ▼
+┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐
+│ Security Branch  │      │ ML Branch        │      │ Core Services    │
+│ (`security`)     │      │ (`ml`)           │      │ (`main`)         │
+│ Headers/Auth     │      │ NLP / BEC        │      │ Correlation      │
+│ Domain / URL     │      │ Behavioral ML    │      │ Risk Engine      │
+│ Forensics / Geo  │      │ Inference        │      │ Delivery Policy  │
+└────────┬─────────┘      └────────┬─────────┘      └────────┬─────────┘
+         └─────────────────────────┼─────────────────────────┘
+                                   ▼
+                        ┌─────────────────────┐
+                        │ Backend Database    │
+                        │ (SQLite / PostgreSQL│
+                        └─────────────────────┘
 ```
 
 ---
 
-## Core Security Pipeline
+## 4. Fundamental Core Workflow
 
 ```text
-1. Email Ingestion
-2. Evidence Preservation
-3. Parsing / Normalization
-4. Sender + Identity Analysis
-5. Email Authentication Analysis
-6. Domain Analysis
-7. Header / IP / Relay Analysis
-8. URL / Link Analysis
-9. Attachment Analysis
-10. Image / QR Analysis
-11. Content / NLP Analysis
-12. BEC / Impersonation Analysis
-13. Behavioral + User Context Analysis
-14. Threat Intelligence Correlation
-15. Security Tag Generation
-16. Risk Calculation
-17. Threat Classification
-18. Delivery Policy
-19. Evidence / Event Persistence
-20. Frontend Presentation
+Incoming Raw Email
+      ↓
+Gateway Ingestion & Normalization
+      ↓
+Evidence & Hash Preservation
+      ↓
+Parallel Analysis Execution
+┌──────────────────────────┴──────────────────────────┐
+│                                                     │
+▼                                                     ▼
+Security Analyzers (`security`)             ML Analyzers (`ml`)
+(Auth, Headers, Domains, URLs)             (NLP, BEC, Phishing, Sentiment)
+│                                                     │
+└──────────────────────────┬──────────────────────────┘
+      ↓
+Canonical Feature Matrix Aggregation
+      ↓
+Security Tag Assignment
+      ↓
+Multi-Signal Correlation Engine
+      ↓
+Explainable Risk Score Calculation (0 - 100)
+      ↓
+Threat Classification (SAFE | SPAM | SUSPICIOUS | MALICIOUS | UNKNOWN)
+      ↓
+Delivery Policy Enforcement (INBOX | SPAM | WARN | HOLD | QUARANTINE | REJECT)
+      ↓
+Database & Forensic Event Persistence
+      ↓
+REST API Response → Frontend Presentation
 ```
 
-The analysis stages may run in parallel where safe and practical. The gateway/orchestrator is responsible for combining their structured outputs.
+---
+
+## 5. Key Architecture Principles
+
+1. **Pre-Delivery Analysis**: Email threat decision is determined before user delivery.
+2. **Classification vs. Delivery Action**:
+   - Threat Classifications: `SAFE`, `SPAM`, `SUSPICIOUS`, `MALICIOUS`, `UNKNOWN`
+   - Delivery Actions: `INBOX`, `SPAM`, `WARN`, `HOLD`, `QUARANTINE`, `REJECT`
+   - *Example*: `Classification = MALICIOUS`, `Risk Score = 94`, `Action = QUARANTINE`.
+3. **`UNKNOWN ≠ SAFE`**: Missing information or external API failures result in `UNKNOWN` visibility, never a silent `SAFE` override.
+4. **Approximate Geolocation**: IP geolocation represents network infrastructure context (ISP/ASN), not physical proof of criminal attribution.
+5. **Frontend Non-Authority**: Frontend strictly displays security verdicts computed by Backend `main`; it never calculates risk scores or overrides actions.
 
 ---
 
-## Classification vs Delivery Action
-
-These are separate concepts.
-
-### Threat Classification
-
-```text
-SAFE
-SPAM
-SUSPICIOUS
-MALICIOUS
-UNKNOWN
-```
-
-### Delivery Action
-
-```text
-INBOX
-SPAM
-WARN
-HOLD
-QUARANTINE
-REJECT
-```
-
-Example:
-
-```text
-Classification = PHISHING
-Risk = 91
-Action = QUARANTINE
-```
-
-Do not infer that every `SPAM` item is malicious.
-
----
-
-## Spam and Security Gateway Partitions
-
-### Spam
-
-```text
-Spam
-├── Marketing
-├── Education
-├── Social / Notifications
-├── Bulk
-├── Scam
-├── Fraud
-├── Phishing
-├── Suspicious
-└── Other
-```
-
-### Security Gateway / Quarantine
-
-```text
-Security Gateway
-├── Malicious
-├── High-Risk Phishing
-├── Malware
-├── BEC / Fraud
-└── Other High Risk
-```
-
-Safe/bulk mail is not automatically malicious. Routing is based on the final policy decision.
-
----
-
-## Harmful Email Protection
-
-For ordinary spam, the user may view the message according to policy.
-
-For suspicious mail, the UI should show a clear warning and controlled access.
-
-For malicious/high-risk quarantined mail:
-
-- do not expose the original body by default
-- do not expose or execute dangerous attachments
-- do not automatically open suspicious links
-- show a sanitized security report
-- show security tags, findings, risk and evidence
-- provide policy-controlled actions such as delete/report/release
-
----
-
-## Unknown Handling
-
-`UNKNOWN` must not silently become `SAFE`.
-
-Recommended policy:
-
-```text
-UNKNOWN → HOLD / policy-defined review
-```
-
-The exact action can be configured, but unknown security state must remain visible.
-
----
-
-## Privacy Principle
-
-> **Analyze for security, not for curiosity.**
-
-Raw email body, images and attachments may be processed transiently when required for security analysis, but should not be unnecessarily persisted, logged or displayed.
-
-Prefer storing:
-
-- normalized metadata
-- security-derived features
-- security tags
-- risk/classification results
-- hashes
-- evidence references
-- audit events
-
-Avoid storing unrelated personal information merely because it appears in an email.
-
----
-
-## Geolocation Rule
-
-IP geolocation represents **approximate network/infrastructure context**.
-
-It must not be presented as proof of:
-
-- exact physical attacker location
-- sender identity
-- criminal attribution
-
-Use wording such as:
-
-> Approximate infrastructure location derived from available network/header evidence.
-
----
-
-## External Intelligence
-
-Threat-intelligence providers are **signals**, not the complete decision engine.
-
-The system should correlate:
-
-- sender reputation
-- domain reputation
-- IP reputation
-- URL reputation
-- attachment reputation
-- phishing/malware/abuse matches
-- historical and contextual signals
-
-A `UNKNOWN` reputation is not equivalent to `SAFE`.
-
----
-
-## ML Rule
-
-The project may use ML/NLP models for phishing, spam, BEC, impersonation and related signals.
-
-Do not publish fabricated accuracy, precision, recall, F1 or other evaluation metrics. Metrics should only be reported after a documented dataset, train/test split and reproducible evaluation.
-
----
-
-## Database Ownership
-
-The database belongs to the Backend repository.
-
-```text
-Frontend → Backend API → Database
-```
-
-The frontend must never connect directly to SQLite/MySQL.
-
----
-
-## Core Data Entities
-
-Initial entities include:
-
-```text
-users
-mailboxes
-emails
-delivery_events
-analysis_runs
-security_findings
-security_tags
-ml_results
-policy_decisions
-evidence
-forensic_cases
-```
-
-The schema may evolve through documented migrations.
-
----
-
-## Development Principle
-
-Keep the SIH prototype:
-
-- practical
-- modular
-- explainable
-- privacy-aware
-- safe for untrusted content
-- reproducible
-- demo-ready
-
-Avoid unnecessary microservices or over-engineering.
+## 6. Project Documentation Index
+
+Detailed specifications are located inside `MailTrace-AI-Backend/`:
+
+- [ARCHITECTURE.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/ARCHITECTURE.md) — System architecture, module topology, REST flow.
+- [REPOSITORY_STRUCTURE.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/REPOSITORY_STRUCTURE.md) — Directory trees & branch ownership map.
+- [TEAM_OWNERSHIP.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/TEAM_OWNERSHIP.md) — Detailed 6-member responsibility split.
+- [BRANCH_WORKFLOW.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/BRANCH_WORKFLOW.md) — Git workflow, branch strategy & PR process.
+- [BACKEND_WORKFLOW.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/BACKEND_WORKFLOW.md) — Core backend development guide (Member 2 & 5).
+- [ML_WORKFLOW.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/ML_WORKFLOW.md) — Machine learning model pipeline guide (Member 3).
+- [SECURITY_WORKFLOW.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/SECURITY_WORKFLOW.md) — Security analyzers & authentication checks (Member 4).
+- [DATABASE_WORKFLOW.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/DATABASE_WORKFLOW.md) — Database schema & migration guide (Member 5).
+- [FORENSICS_WORKFLOW.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/FORENSICS_WORKFLOW.md) — Forensic evidence & geo-infrastructure guide (Member 6).
+- [INTEGRATION.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/INTEGRATION.md) — Cross-branch integration standards & JSON payloads.
+- [API_SPEC.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/API_SPEC.md) — REST API endpoints & payload definitions.
+- [ANALYSIS_PIPELINE.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/ANALYSIS_PIPELINE.md) — 20-stage email analysis pipeline details.
+- [SECURITY_FEATURE_SCHEMA.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/SECURITY_FEATURE_SCHEMA.md) — Canonical feature data contracts.
+- [DELIVERY_POLICY.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/DELIVERY_POLICY.md) — Risk calculation & policy enforcement rules.
+- [EVIDENCE_AND_FORENSICS.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/EVIDENCE_AND_FORENSICS.md) — Forensic evidence structures & timeline logs.
+- [DEVELOPMENT_GUIDELINES.md](file:///d:/SIHproject/MailTrace-Backend/MailTrace-AI-Backend/DEVELOPMENT_GUIDELINES.md) — Code style, testing, and pull request conventions.

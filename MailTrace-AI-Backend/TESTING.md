@@ -1,77 +1,50 @@
-# Testing Strategy
+# Testing Framework & Quality Assurance Specification
 
-## Unit Tests
+## 1. Testing Architecture
 
-Each analyzer should have tests for:
-
-- valid input
-- malformed input
-- missing fields
-- unknown provider result
-- suspicious input
-- safe input
-
-## Integration Tests
-
-At minimum, test the gateway with:
-
-1. Safe email
-2. Marketing/bulk email
-3. Phishing email
-4. BEC/payment-request email
-5. Malicious attachment case
-6. Suspicious URL case
-7. QR-code phishing case
-8. New/lookalike domain case
-9. SPF/DKIM/DMARC failure case
-10. Unknown/insufficient-signal case
-
-## End-to-End Test
-
-The first major integrated milestone is:
+Testing is organized by workstream and permanent branch across `MailTrace-AI-Backend`:
 
 ```text
-Test Email
-   ↓
-Gateway
-   ↓
-Existing analyzers
-   ↓
-Canonical features
-   ↓
-Security tags
-   ↓
-Risk engine
-   ↓
-Classification
-   ↓
-Delivery policy
-   ↓
-Database
-   ↓
-Backend API
-   ↓
-Frontend
+tests/
+├── unit/                       # Isolated Module Unit Tests
+│   ├── backend/                # Unit Tests for app/ (Member 2 & 5)
+│   ├── ml/                     # Unit Tests for ml/ (Member 3)
+│   ├── security/               # Unit Tests for security/ (Member 4)
+│   └── forensics/              # Unit Tests for forensic/ (Member 6)
+│
+├── integration/                # Full Gateway & Database Integration Tests
+│   ├── test_pipeline.py        # End-to-End Analysis Pipeline Test
+│   └── test_api_routes.py      # FastAPI Endpoint Tests
+│
+└── fixtures/                   # Standardized Test Email Payloads
+    ├── benign_email.eml        # Sample Safe Email
+    ├── spf_fail_phish.eml      # Sample SPF/DMARC Failure Phish
+    ├── lookalike_paypal.eml    # Sample Lookalike Domain Phish
+    └── bec_urgency.eml         # Sample High-Urgency BEC Email
 ```
 
-## Security Tests
+---
 
-Verify that:
+## 2. Test Execution Commands
 
-- suspicious URLs are not auto-opened
-- attachments are not executed in the normal backend
-- malicious content is not exposed by default
-- frontend cannot override backend decisions
-- unknown signals are not silently converted to safe
-- raw content is not unnecessarily written to logs
+```bash
+# Run All Tests
+pytest
 
-## ML Evaluation
+# Run Unit Tests for Security Analyzers
+pytest tests/unit/security/
 
-Only publish ML metrics when:
+# Run Unit Tests for ML Classifiers
+pytest tests/unit/ml/
 
-- dataset is documented
-- train/test split is defined
-- evaluation is reproducible
-- metrics are calculated from actual predictions
+# Run End-to-End Pipeline Integration Tests
+pytest tests/integration/test_pipeline.py
+```
 
-Do not invent demo accuracy numbers.
+---
+
+## 3. Test Coverage Requirements
+
+1. **Feature Coverage**: Every new analyzer or ML classifier must include unit tests verifying `PASS`, `FAIL`, and edge-case behavior.
+2. **Mocking External Services**: External network calls (DNS lookups, Threat Intel APIs) must be mocked using `unittest.mock` or `pytest-mock` in unit tests.
+3. **No Direct Execution**: Test fixtures containing phishing URLs or malicious MIME samples must be stored safely in plaintext test fixtures (`.eml` or `.json`), never executed.

@@ -1,74 +1,36 @@
-# Threat Intelligence and External Signals
+# Threat Intelligence & Provider Adapter Specification
 
-## Role
+## 1. Subsystem Purpose
 
-Threat intelligence strengthens MailTrace but does not replace the internal security pipeline.
+The Threat Intelligence subsystem (developed on `security` by Member 4) integrates external threat feeds (e.g., VirusTotal, AbuseIPDB, Quad9, Google Safe Browsing) to enrich IP, domain, and URL security evaluation.
 
-## Signal Types
+---
 
-The platform may consume:
+## 2. Adapter Pattern Architecture
 
-- sender reputation
-- domain reputation
-- IP reputation
-- URL reputation
-- attachment/hash reputation
-- phishing databases
-- malware databases
-- abuse/blacklist feeds
-- first-seen/last-seen context
-
-## Provider Abstraction
-
-Use adapters:
+To prevent provider downtime or rate-limit exhaustion from impacting gateway processing, all threat intelligence services are implemented behind **Provider Adapters**:
 
 ```text
-ThreatIntelAdapter
-├── Domain reputation provider
-├── IP reputation provider
-├── URL reputation provider
-└── Hash reputation provider
+MailTrace Gateway Orchestrator (`main`)
+                 │
+                 ▼
+Threat Intelligence Adapter Manager (`security`)
+                 │
+   ┌─────────────┼─────────────┐
+   ▼             ▼             ▼
+┌──────────────┐┌────────────┐┌──────────────┐
+│ VirusTotal   ││ AbuseIPDB  ││ Local Cache  │
+│ Adapter      ││ Adapter    ││ (Redis/Memory│
+└──────────────┘└────────────┘└──────────────┘
 ```
 
-Provider-specific logic should not be scattered through the gateway.
+---
 
-## Provider Failure
+## 3. Resilience Guidelines
 
-If a provider is unavailable:
-
-```text
-provider_status = UNAVAILABLE
-```
-
-Do not convert:
-
-```text
-UNAVAILABLE → SAFE
-```
-
-The remaining independent signals must still be evaluated.
-
-## Reputation Is Not Verdict
-
-A known-good reputation does not prove a message is safe.
-
-A new/unknown domain does not prove it is malicious.
-
-The risk engine should correlate reputation with:
-
-- authentication
-- domain age
-- lookalike/typosquatting
-- URL behavior
-- content/NLP
-- BEC indicators
-- sender history
-- behavioral anomalies
-- user context
-- attachment/QR findings
-
-## Safe External Inspection
-
-External URLs/files must be inspected only through safe mechanisms appropriate to their risk.
-
-Never require the normal developer browser to open a suspicious URL merely to obtain a detection result.
+1. **Strict Timeouts**: Every HTTP lookup to an external API must enforce a hard timeout of **1.5 to 2.5 seconds**.
+2. **Local Caching**: Resolved IP and domain threat scores must be cached locally (TTL: 24 hours) to minimize API usage.
+3. **Graceful Fallback**: If an external provider fails or times out:
+   - Log the failure cleanly.
+   - Return a result status of `PROVIDER_TIMEOUT` or `UNKNOWN`.
+   - **Do not crash** the core pipeline execution.

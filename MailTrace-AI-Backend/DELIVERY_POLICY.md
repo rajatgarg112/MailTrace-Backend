@@ -1,115 +1,67 @@
-# Delivery Policy
+# Delivery Policy & Risk Decision Matrix Specification
 
-## Purpose
+## 1. Threat Classification vs. Delivery Action
 
-The delivery policy converts the backend security decision into a user-facing routing action.
-
-## Classification
+MailTrace-AI maintains a strict conceptual separation between **Threat Classification** (security diagnosis) and **Delivery Action** (enforcement decision).
 
 ```text
-SAFE
-SPAM
-SUSPICIOUS
-MALICIOUS
-UNKNOWN
+Security Feature Matrix
+          ↓
+Security Tags Assignment
+          ↓
+Weighted Risk Score Calculation (0 - 100)
+          ↓
+Threat Classification (SAFE | SPAM | SUSPICIOUS | MALICIOUS | UNKNOWN)
+          ↓
+Delivery Policy Engine Enforcement (INBOX | SPAM | WARN | HOLD | QUARANTINE | REJECT)
 ```
 
-## Actions
+---
 
-```text
-INBOX
-SPAM
-WARN
-HOLD
-QUARANTINE
-REJECT
-```
+## 2. Threat Classifications
 
-## Recommended Policy
+1. **`SAFE`**: Email authentication passes; no malicious links, domain anomalies, or BEC indicators found.
+2. **`SPAM`**: Unsolicited marketing, educational, bulk, or notification emails lacking targeted malicious payloads.
+3. **`SUSPICIOUS`**: Moderate-risk emails featuring low domain age, unverified senders, or elevated urgency scores.
+4. **`MALICIOUS`**: Confirmed phishing attacks, credential harvesters, lookalike domain spoofs, or severe BEC attempts.
+5. **`UNKNOWN`**: Analysis incomplete due to missing headers, external provider timeouts, or unparseable payloads.
 
-```text
-SAFE
-  → INBOX
+> [!IMPORTANT]
+> **`UNKNOWN ≠ SAFE`**: An email with incomplete data must never be silently classified as `SAFE`. It retains an `UNKNOWN` status to maintain visibility for analysts.
 
-SPAM
-  → SPAM category
+---
 
-SUSPICIOUS
-  → WARN / HOLD
+## 3. Delivery Actions
 
-MALICIOUS
-  → QUARANTINE
+1. **`INBOX`**: Delivered directly to user's primary inbox.
+2. **`SPAM`**: Routed to user's Spam/Junk folder.
+3. **`WARN`**: Delivered to inbox with prominent warning header banner attached.
+4. **`HOLD`**: Temporarily held for analyst review or asynchronous sandboxing.
+5. **`QUARANTINE`**: Isolated in Quarantine Vault; blocked from user inbox.
+6. **`REJECT`**: Hard bounce / SMTP rejection at gateway level.
 
-UNKNOWN
-  → HOLD / policy-defined
-```
+---
 
-## Spam Categories
+## 4. Policy Mapping Matrix
 
-```text
-MARKETING
-EDUCATION
-SOCIAL_NOTIFICATION
-BULK
-SCAM
-FRAUD
-PHISHING
-SUSPICIOUS
-OTHER
-```
+| Risk Score Range | Threat Classification | Default Delivery Action | Security Tags Included |
+|---|---|---|---|
+| $0 \le \text{Risk} \le 20$ | `SAFE` | `INBOX` | (None or minor informational tags) |
+| $21 \le \text{Risk} \le 55$ | `SPAM` | `SPAM` | `BULK_MARKETING`, `UNSUBSCRIBE_LINK` |
+| $56 \le \text{Risk} \le 75$ | `SUSPICIOUS` | `WARN` or `HOLD` | `NEW_DOMAIN`, `SPF_FAIL`, `HIGH_URGENCY` |
+| $76 \le \text{Risk} \le 100$ | `MALICIOUS` | `QUARANTINE` or `REJECT` | `DMARC_FAIL`, `LOOKALIKE_DOMAIN`, `CREDENTIAL_INTENT` |
+| (Any score with missing data) | `UNKNOWN` | `HOLD` | `ANALYSIS_TIMEOUT`, `MISSING_HEADERS` |
 
-## Security Gateway Categories
+---
 
-```text
-MALICIOUS
-HIGH_RISK_PHISHING
-MALWARE
-BEC_FRAUD
-OTHER_HIGH_RISK
-```
+## 5. Spam Category Taxonomy
 
-## Important Distinction
+When an email is classified as `SPAM`, it is sub-categorized for analyst reporting:
 
-Classification and delivery action are independent.
-
-Examples:
-
-```text
-Classification: PHISHING
-Action: QUARANTINE
-```
-
-```text
-Classification: SPAM
-Category: MARKETING
-Action: SPAM
-```
-
-```text
-Classification: UNKNOWN
-Action: HOLD
-```
-
-## Harmful Content Protection
-
-For high-risk/malicious messages:
-
-- original body is blocked by default
-- attachments are blocked by default
-- suspicious URLs are not automatically opened
-- user receives a sanitized security report
-- security findings and evidence remain available
-- release is only possible through an explicit policy-controlled action
-
-## User Actions
-
-Possible policy-controlled actions:
-
-```text
-Delete
-Report
-Release (if allowed)
-Review security report
-```
-
-Do not allow the frontend to bypass backend policy.
+- `MARKETING`: Unsolicited commercial promotions.
+- `EDUCATION`: Educational newsletters or webinar invitations.
+- `SOCIAL_NOTIFICATION`: Social media updates or digest summaries.
+- `BULK`: Automated bulk mailers.
+- `SCAM`: Fraudulent financial proposals or advance-fee scams.
+- `FRAUD`: Fake invoice or bogus payment notifications.
+- `OTHER`: Unclassified promotional mailers.

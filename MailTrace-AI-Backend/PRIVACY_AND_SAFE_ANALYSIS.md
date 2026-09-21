@@ -1,97 +1,17 @@
-# Privacy and Safe Analysis
+# Privacy Preservation & Safe Untrusted Content Analysis Specification
 
-## Principle
+## 1. Untrusted Content Isolation Principles
 
-> **Analyze for security, not for curiosity.**
+Emails processed by MailTrace-AI contain untrusted text, headers, links, and attachments. All analysis modules must enforce strict isolation boundaries:
 
-MailTrace should process only the information required to detect, classify and investigate email threats.
+1. **Zero Execution of Attachments**: Attachments are analyzed strictly via static inspection (MIME type verification, file hash lookup, header byte checks). No code execution occurs on the backend host.
+2. **Safe URL Unshortening**: Link expansion engines must disallow downloading binary files or executing client-side JavaScript. HTTP `HEAD` requests are preferred over `GET` requests where supported.
+3. **Data Sanitization**: Before storing email body contents or passing text to NLP models, HTML tags, script elements, and embedded tracking pixels must be stripped.
 
-## Raw Email Content
+---
 
-Raw body, images and attachments may be processed transiently when required.
+## 2. Privacy & PII Preservation
 
-Default principles:
-
-- minimize persistence
-- avoid unnecessary logs
-- avoid exposing raw content to dashboards
-- use derived security features where possible
-- use hashes/references for evidence
-- apply explicit retention rules
-
-## Security Tags
-
-Tags must remain security-focused.
-
-Good:
-
-```text
-New-Domain
-DMARC-Fail
-Suspicious-URL
-Credential-Request
-QR-Code
-Phishing
-```
-
-Do not create unrelated tags from private content such as:
-
-```text
-Medical-Condition
-Salary
-Relationship
-Personal-Preference
-```
-
-unless an explicit security requirement exists and policy permits it.
-
-## Attachments
-
-Do not execute untrusted files in the normal backend process.
-
-Use:
-
-```text
-static analysis
-→ reputation
-→ isolated sandbox if required
-```
-
-## URLs
-
-Do not automatically open suspicious URLs in the user's browser.
-
-Use safe parsing, reputation, redirect inspection and an isolated browser/sandbox when deeper inspection is required.
-
-## QR Codes
-
-Decoded QR content is untrusted.
-
-A QR URL follows the same URL analysis pipeline as a normal email URL.
-
-## Evidence
-
-Evidence records should include only what is necessary to support security/forensic analysis.
-
-Use:
-
-- SHA-256 hashes
-- timestamps
-- source metadata
-- selected headers
-- extracted security facts
-- chain/event metadata
-
-An evidence report should not be described as automatically “court-admissible” solely because ISO/IEC 27037 guidance was followed.
-
-## GeoLocation
-
-IP geolocation is approximate infrastructure context. It is not an exact physical-location or identity claim.
-
-## Unknown Signals
-
-Unknown reputation, unavailable APIs or missing context should be explicitly represented.
-
-```text
-UNKNOWN ≠ SAFE
-```
+1. **Credentials & Token Scrubbing**: Password fields, OAuth tokens, and session cookies contained in email body text must be redacted prior to database persistence.
+2. **Database Encryption**: Sensitive fields (e.g., raw email contents) should be encrypted at rest when stored in database columns.
+3. **Internal Log Hygiene**: Debug log output must never contain raw user passwords, authentication headers, or unsanitized email body text.
