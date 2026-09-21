@@ -118,3 +118,13 @@ class SecurityRepository:
 
         self.session.flush()
         return attached_tags
+
+    def get_tags_for_email(self, email_id: str) -> List[SecurityTag]:
+        """Retrieves all distinct security tags associated with an email."""
+        stmt = (
+            select(SecurityTag)
+            .join(SecurityTag.analysis_runs)
+            .where(AnalysisRun.email_id == email_id)
+            .distinct()
+        )
+        return list(self.session.scalars(stmt).all())

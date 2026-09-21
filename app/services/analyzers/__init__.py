@@ -7,6 +7,15 @@ from app.services.analyzers.result import (
     create_skipped_result,
     create_unavailable_result,
 )
+from app.services.analyzers.ml_analyzer import MLAnalyzer
+from app.services.analyzers.security_analyzer import (
+    AttachmentSecurityAnalyzer,
+    DomainSecurityAnalyzer,
+    ForensicEvidenceAnalyzer,
+    HeaderAuthenticationAnalyzer,
+    RelayInfrastructureAnalyzer,
+    URLSecurityAnalyzer,
+)
 from app.services.analyzers.stubs import (
     BaseStubAnalyzer,
     StubAttachmentAnalyzer,
@@ -28,6 +37,14 @@ __all__ = [
     # Registry
     "AnalyzerRegistry",
     "default_registry",
+    # Live Analyzers
+    "MLAnalyzer",
+    "HeaderAuthenticationAnalyzer",
+    "DomainSecurityAnalyzer",
+    "URLSecurityAnalyzer",
+    "AttachmentSecurityAnalyzer",
+    "RelayInfrastructureAnalyzer",
+    "ForensicEvidenceAnalyzer",
     # Result Helpers
     "create_analyzer_result",
     "create_skipped_result",

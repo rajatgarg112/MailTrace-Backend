@@ -124,3 +124,43 @@ class EmailRepository:
             stmt = stmt.where(Email.received_at <= end_date)
         stmt = stmt.order_by(Email.received_at.desc()).limit(limit).offset(offset)
         return list(self.session.scalars(stmt).all())
+
+    def get_by_identifier(self, identifier: str) -> Optional[Email]:
+        """Retrieves an Email by primary key ID or RFC 5322 Message-ID."""
+        clean_id = identifier.strip()
+        email = self.get_by_id(clean_id)
+        if not email:
+            email = self.get_by_message_id(clean_id)
+        return email
+
+    def query_filtered(
+        self,
+        action: Optional[str] = None,
+        classification: Optional[str] = None,
+        category: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[Email]:
+        """Queries emails filtered by policy action, threat classification, category, or text search."""
+        if action or classification or category:
+            from app.models.decision import PolicyDecision
+            stmt = select(Email).join(Email.policy_decisions)
+            if action:
+                stmt = stmt.where(PolicyDecision.action == action.strip().upper())
+            if classification:
+                stmt = stmt.where(PolicyDecision.classification == classification.strip().upper())
+            if category:
+                stmt = stmt.where(
+                    (PolicyDecision.spam_category.ilike(category.strip())) |
+                    (PolicyDecision.gateway_category.ilike(category.strip()))
+                )
+        else:
+            stmt = select(Email)
+
+        if search:
+            term = f"%{search.strip()}%"
+            stmt = stmt.where((Email.subject.ilike(term)) | (Email.sender_address.ilike(term)))
+
+        stmt = stmt.order_by(Email.received_at.desc()).limit(limit).offset(offset)
+        return list(self.session.scalars(stmt).unique().all())

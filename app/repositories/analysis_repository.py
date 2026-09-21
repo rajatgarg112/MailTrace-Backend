@@ -128,3 +128,53 @@ class AnalysisRepository:
 
         self.session.flush()
         return run
+
+    def get_latest_for_email(self, email_id: str) -> Optional[AnalysisRun]:
+        """Retrieves the most recent AnalysisRun for an email."""
+        stmt = (
+            select(AnalysisRun)
+            .where(AnalysisRun.email_id == email_id)
+            .order_by(AnalysisRun.created_at.desc())
+        )
+        return self.session.scalars(stmt).first()
+
+    def get_overview_stats(self) -> Dict[str, Any]:
+        """Calculates SOC threat overview statistics and distribution metrics."""
+        runs = list(self.session.scalars(select(AnalysisRun)).all())
+        total_scanned = len(runs)
+        
+        breakdown = {"MALICIOUS": 0, "SUSPICIOUS": 0, "SPAM": 0, "SAFE": 0, "UNKNOWN": 0}
+        risk_dist = [
+            {"label": "Low (0-30)", "count": 0, "color": "#10b981"},
+            {"label": "Moderate (31-60)", "count": 0, "color": "#f59e0b"},
+            {"label": "High (61-85)", "count": 0, "color": "#f97316"},
+            {"label": "Critical (86-100)", "count": 0, "color": "#ef4444"},
+        ]
+        
+        active_threats = 0
+        for r in runs:
+            cls_key = (r.classification or "UNKNOWN").upper()
+            if cls_key in breakdown:
+                breakdown[cls_key] += 1
+            else:
+                breakdown["UNKNOWN"] += 1
+                
+            if cls_key in ("MALICIOUS", "PHISHING", "SUSPICIOUS"):
+                active_threats += 1
+                
+            score = r.overall_risk_score or 0.0
+            if score <= 30.0:
+                risk_dist[0]["count"] += 1
+            elif score <= 60.0:
+                risk_dist[1]["count"] += 1
+            elif score <= 85.0:
+                risk_dist[2]["count"] += 1
+            else:
+                risk_dist[3]["count"] += 1
+
+        return {
+            "scannedCount": total_scanned,
+            "activeThreatsCount": active_threats,
+            "classificationsBreakdown": breakdown,
+            "riskDistribution": risk_dist,
+        }

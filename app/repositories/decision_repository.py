@@ -107,3 +107,32 @@ class DecisionRepository:
             .order_by(DeliveryEvent.created_at.desc())
         )
         return list(self.session.scalars(stmt).all())
+
+    def get_latest_decision_for_email(self, email_id: str) -> Optional[PolicyDecision]:
+        """Retrieves the most recent policy decision for an email."""
+        stmt = (
+            select(PolicyDecision)
+            .where(PolicyDecision.email_id == email_id)
+            .order_by(PolicyDecision.created_at.desc())
+        )
+        return self.session.scalars(stmt).first()
+
+    def get_latest_delivery_event_for_email(self, email_id: str) -> Optional[DeliveryEvent]:
+        """Retrieves the most recent delivery event for an email."""
+        stmt = (
+            select(DeliveryEvent)
+            .where(DeliveryEvent.email_id == email_id)
+            .order_by(DeliveryEvent.created_at.desc())
+        )
+        return self.session.scalars(stmt).first()
+
+    def list_by_action(self, action: str, limit: int = 50, offset: int = 0) -> List[PolicyDecision]:
+        """Retrieves policy decisions matching an action (e.g. QUARANTINE, SPAM)."""
+        stmt = (
+            select(PolicyDecision)
+            .where(PolicyDecision.action == action.strip().upper())
+            .order_by(PolicyDecision.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(self.session.scalars(stmt).all())

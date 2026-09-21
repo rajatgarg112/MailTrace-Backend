@@ -26,8 +26,9 @@ setup_exception_handlers(app)
 
 from app.api.v1.router import api_v1_router
 
-# Include API v1 router
+# Include API v1 router (and /api alias for contract compatibility)
 app.include_router(api_v1_router, prefix="/api/v1")
+app.include_router(api_v1_router, prefix="/api")
 
 
 @app.get("/health", tags=["Health"])

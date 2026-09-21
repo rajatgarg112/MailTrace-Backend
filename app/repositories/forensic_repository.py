@@ -163,3 +163,29 @@ class ForensicRepository:
         if not case:
             return []
         return list(case.evidence)
+
+    def list_cases(
+        self,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[ForensicCase]:
+        """Lists forensic cases with optional status and severity filtering."""
+        stmt = select(ForensicCase)
+        if status:
+            stmt = stmt.where(ForensicCase.status == status.strip().upper())
+        if severity:
+            stmt = stmt.where(ForensicCase.severity == severity.strip().upper())
+        stmt = stmt.order_by(ForensicCase.created_at.desc()).limit(limit).offset(offset)
+        return list(self.session.scalars(stmt).all())
+
+    def get_case_for_email(self, email_id: str) -> Optional[ForensicCase]:
+        """Retrieves the forensic case associated with an email."""
+        stmt = (
+            select(ForensicCase)
+            .join(ForensicCase.emails)
+            .where(Email.id == email_id)
+            .order_by(ForensicCase.created_at.desc())
+        )
+        return self.session.scalars(stmt).first()

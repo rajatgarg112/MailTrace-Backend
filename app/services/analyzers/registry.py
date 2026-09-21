@@ -39,5 +39,28 @@ class AnalyzerRegistry:
         self._analyzers.clear()
 
 
-# Default singleton instance for application orchestrator
-default_registry = AnalyzerRegistry()
+def create_default_registry() -> "AnalyzerRegistry":
+    """Builds and returns the authoritative production registry with ML and Security analyzers."""
+    from app.services.analyzers.ml_analyzer import MLAnalyzer
+    from app.services.analyzers.security_analyzer import (
+        HeaderAuthenticationAnalyzer,
+        DomainSecurityAnalyzer,
+        URLSecurityAnalyzer,
+        AttachmentSecurityAnalyzer,
+        RelayInfrastructureAnalyzer,
+        ForensicEvidenceAnalyzer,
+    )
+
+    reg = AnalyzerRegistry()
+    reg.register(MLAnalyzer())
+    reg.register(HeaderAuthenticationAnalyzer())
+    reg.register(DomainSecurityAnalyzer())
+    reg.register(URLSecurityAnalyzer())
+    reg.register(AttachmentSecurityAnalyzer())
+    reg.register(RelayInfrastructureAnalyzer())
+    reg.register(ForensicEvidenceAnalyzer())
+    return reg
+
+
+# Default singleton instance for application orchestrator populated with live adapters
+default_registry = create_default_registry()

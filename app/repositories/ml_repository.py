@@ -74,3 +74,12 @@ class MLRepository:
             .order_by(MLResult.created_at.desc())
         )
         return list(self.session.scalars(stmt).all())
+
+    def get_latest_for_email(self, email_id: str) -> Optional[MLResult]:
+        """Retrieves the most recent ML result for an email."""
+        stmt = (
+            select(MLResult)
+            .where(MLResult.email_id == email_id)
+            .order_by(MLResult.created_at.desc())
+        )
+        return self.session.scalars(stmt).first()
