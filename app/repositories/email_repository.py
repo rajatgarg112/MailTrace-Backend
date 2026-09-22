@@ -131,6 +131,10 @@ class EmailRepository:
         email = self.get_by_id(clean_id)
         if not email:
             email = self.get_by_message_id(clean_id)
+        if not email and (clean_id.startswith("thr-") or clean_id.startswith("quar-")):
+            short_id = clean_id.split("-", 1)[1]
+            stmt = select(Email).where(Email.id.startswith(short_id))
+            email = self.session.scalars(stmt).first()
         return email
 
     def query_filtered(

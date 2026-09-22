@@ -23,12 +23,21 @@ class IntentClassifier:
         docs = [
             "Your account is suspended. Click here to verify credentials and password immediately.",
             "Wire transfer needed for invoice payment. Update bank account details ASAP.",
-            "Weekly team meeting sync notes and project updates attached for review.",
-            "Exclusive discount offer! Claim your free coupon now before deal expires.",
             "Urgent: Security alert regarding your Office365 password reset request.",
-            "Hi, please find attached the monthly newsletter and community updates."
+            "Exclusive discount offer! Claim your free coupon now before deal expires.",
+            "Weekly team meeting sync notes and project updates attached for review.",
+            "Hi, please find attached the monthly newsletter and community updates.",
+            "Hello, hope you are doing well. Just wanted to follow up on our discussion.",
+            "Hey team, lets connect tomorrow morning to discuss the project sprint plan.",
+            "Thanks for the email, I will review the document and get back to you shortly.",
+            "Hi Raghav, can we schedule a quick call this afternoon to sync up on progress?",
+            "Meeting agenda for tomorrow discussion with engineering team.",
         ]
-        labels = ["phishing", "phishing", "benign", "spam", "phishing", "benign"]
+        labels = [
+            "phishing", "phishing", "phishing",
+            "spam",
+            "benign", "benign", "benign", "benign", "benign", "benign", "benign"
+        ]
         self.model.train(docs, labels)
 
     def classify_intent(self, subject: str, body: str, cta_score: float) -> Dict[str, float]:
@@ -51,6 +60,11 @@ class IntentClassifier:
         impersonation_lang_score = round(min(1.0, 0.5 * authority_score + 0.5 * cred_score), 4)
 
         # Combined Phishing & Spam scores
+        # If predicted as benign and zero suspicious keyword signals exist, prevent false positive phishing
+        pred_label = max(probs, key=probs.get) if probs else "benign"
+        if pred_label == "benign" and cred_score == 0 and fin_score == 0 and urgency_score == 0:
+            model_phishing = min(model_phishing, 0.20)
+
         phishing_score = round(min(1.0, max(model_phishing, 0.5 * cred_score + 0.3 * cta_score + 0.2 * social_eng_score)), 4)
         spam_score = round(min(1.0, max(model_spam, 0.4 * cta_score + 0.3 * urgency_score)), 4)
 

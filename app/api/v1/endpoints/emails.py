@@ -317,18 +317,25 @@ async def analyze_email_endpoint(
         or risk_result.overall_risk_score >= 70.0
         or action_str in ("QUARANTINE", "HOLD", "REJECT")
     ):
-        case_title = f"Forensic Threat Case: {normalized_email.subject or normalized_email.message_id}"
+        is_live_composed = (
+            normalized_email.message_id.startswith("eml-live-")
+            or (normalized_email.headers and normalized_email.headers.get("X-MailTrace-Source") == "fono-compose")
+        )
+        case_title = f"{'Pre-Delivery Quarantine Review' if is_live_composed else 'Forensic Threat Case'}: {normalized_email.subject or normalized_email.message_id}"
+        case_status = "IN_REVIEW" if is_live_composed else "OPEN"
+
         case_db = forensic_repo.create_case(
             title=case_title[:255],
             description=(
-                f"Automated threat investigation initiated. "
+                f"{'Live email intercepted at Gateway pending SOC review.' if is_live_composed else 'Automated threat investigation initiated.'} "
                 f"Risk Score: {risk_result.overall_risk_score}/100. "
                 f"Classification: {classification_str}. "
                 f"Policy Action: {action_str}."
             ),
-            status="OPEN",
+            status=case_status,
             severity="CRITICAL" if risk_result.overall_risk_score >= 85.0 else "HIGH",
             tags=correlation_output.security_tags,
+            assigned_to="SOC Lead Analyst (analyst@mailtrace.ai)",
         )
         forensic_repo.attach_email_to_case(case_db.id, email_db.id)
         if evidence_db:
@@ -356,9 +363,11 @@ async def analyze_email_endpoint(
     summary="List received emails with optional filters",
 )
 async def list_emails_endpoint(
-    action: Optional[str] = Query(None, description="Filter by delivery action (e.g. INBOX, SPAM, QUARANTINE)"),
+    action: Optional[str] = Query(None, description="Filter by delivery action (e.g. INBOX, SPAM, QUARANTINE, SENT)"),
     classification: Optional[str] = Query(None, description="Filter by threat classification (e.g. SAFE, PHISHING, SPAM)"),
     category: Optional[str] = Query(None, description="Filter by category (e.g. Marketing, Scam)"),
+    folder: Optional[str] = Query(None, description="Filter by folder (inbox, sent, spam, quarantine)"),
+    sender: Optional[str] = Query(None, description="Filter by sender address"),
     search: Optional[str] = Query(None, description="Search term in subject or sender"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -366,6 +375,22 @@ async def list_emails_endpoint(
     db: Session = Depends(get_db),
 ):
     email_repo = EmailRepository(db)
+
+    # Handle Sent folder (outbound emails sent by user or marked as sent)
+    if (folder and folder.lower() == "sent") or (action and action.upper() == "SENT"):
+        stmt = (
+            select(Email)
+            .where(
+                (Email.sender_address.ilike("%@mailtrace.ai"))
+                | (Email.mailbox_id == "sent")
+            )
+            .order_by(Email.received_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        emails = list(db.scalars(stmt).all())
+        return [serialize_email(e, db) for e in emails]
+
     emails = email_repo.query_filtered(
         action=action,
         classification=classification,
