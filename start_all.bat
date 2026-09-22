@@ -82,7 +82,7 @@ if %errorlevel% neq 0 (
 where npm >nul 2>&1
 if %errorlevel% neq 0 (
     echo [WARNING] 'npm' was not found in your PATH!
-    echo Please install Node.js (LTS) from nodejs.org.
+    echo Please install Node.js LTS from https://nodejs.org/
     echo.
     pause
     exit /b 1
@@ -90,7 +90,7 @@ if %errorlevel% neq 0 (
 
 if not exist "%FRONTEND_DIR%\node_modules" (
     echo [INFO] First time run detected: node_modules missing in frontend.
-    echo Installing frontend dependencies (npm install)...
+    echo Installing frontend dependencies - running npm install...
     pushd "%FRONTEND_DIR%"
     call npm install
     popd
