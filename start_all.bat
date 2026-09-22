@@ -118,16 +118,16 @@ echo Waiting for servers to initialize...
 ping 127.0.0.1 -n 4 > nul
 
 echo Opening dashboards in your browser...
-start "" "http://localhost:5173"
-start "" "http://localhost:5174"
+start "" "http://localhost:5173/fono"
+start "" "http://localhost:5174/security"
 start "" "http://localhost:8000/docs"
 
 echo.
 echo ========================================================
 echo All services are running and opened in your browser!
 echo.
-echo   * User Webmail:        http://localhost:5173
-echo   * Security SOC Portal: http://localhost:5174
+echo   * User Webmail:        http://localhost:5173/fono
+echo   * Security SOC Portal: http://localhost:5174/security
 echo   * Backend API Docs:    http://localhost:8000/docs
 echo.
 echo Note: Keep the command windows open while working.
